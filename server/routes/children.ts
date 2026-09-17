@@ -29,10 +29,15 @@ childrenRoutes.get('/', parentAuthMiddleware, async (c) => {
   const user = c.get('user')!;
   const db = new DbHelper(c.env.DB);
 
-  const children = await db.query<Child>(
+  const rawChildren = await db.query<Child>(
     'SELECT id, user_id, display_name, age_or_birth_year, gender_optional, photo_url, local_code, current_level, total_points, created_at, updated_at FROM children WHERE user_id = ? ORDER BY created_at ASC',
     user.id
   );
+
+  const children = rawChildren.map(ch => ({
+    ...ch,
+    local_code: ch.local_code ? ch.local_code.padStart(4, '0') : ch.local_code,
+  }));
 
   return c.json({ success: true, children });
 });

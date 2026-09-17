@@ -77,7 +77,7 @@ export const ChildLoginPage: React.FC = () => {
   };
 
   const submitCode = async (code: string) => {
-    if (code.length !== 4) return;
+    if (code.length < 3 || code.length > 4) return;
     setLoading(true);
     setError(null);
 
@@ -184,8 +184,8 @@ export const ChildLoginPage: React.FC = () => {
           </button>
           <button
             type="button"
-            disabled={digits.some(d => d === '') || loading}
-            onClick={() => submitCode(digits.join(''))}
+            disabled={digits.filter(d => d !== '').length < 3 || loading}
+            onClick={() => submitCode(digits.filter(d => d !== '').join(''))}
             className="btn-child !min-h-[52px] bg-brand-turquoise hover:bg-[#1E9A92] text-white text-base font-bold shadow-md disabled:opacity-40"
           >
             دخول

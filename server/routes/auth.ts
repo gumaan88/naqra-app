@@ -150,8 +150,13 @@ authRoutes.post('/child-login', async (c) => {
       }, 429);
     }
 
-    // 2. Query child by unique local_code
-    const child = await db.first<Child>('SELECT * FROM children WHERE local_code = ?', cleanCode);
+    // 2. Query child by unique local_code (matching direct, padded to 4 digits, or unpadded)
+    const unpaddedCode = cleanCode.replace(/^0+/, '');
+    const paddedCode = cleanCode.padStart(4, '0');
+    const child = await db.first<Child>(
+      'SELECT * FROM children WHERE local_code = ? OR local_code = ? OR local_code = ?',
+      cleanCode, paddedCode, unpaddedCode
+    );
 
     if (!child) {
       // Record failed attempt

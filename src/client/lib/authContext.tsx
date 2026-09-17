@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   isMuted: boolean;
   loginParent: (token: string, user: User) => void;
+  login: (token: string, user: User) => void;
   loginChild: (token: string, child: Child) => void;
   logout: () => Promise<void>;
   toggleSound: () => void;
@@ -101,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isMuted,
         loginParent,
+        login: loginParent,
         loginChild,
         logout,
         toggleSound,
