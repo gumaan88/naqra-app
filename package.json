@@ -1,0 +1,41 @@
+{
+  "name": "naqra-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "deploy": "wrangler deploy",
+    "d1:create": "wrangler d1 create naqra_db",
+    "d1:migrate:local": "wrangler d1 migrations apply naqra_db --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply naqra_db --remote",
+    "d1:seed:local": "wrangler d1 execute naqra_db --local --file=./seed/initial_content.sql",
+    "d1:seed:remote": "wrangler d1 execute naqra_db --remote --file=./seed/initial_content.sql"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.4",
+    "hono": "^4.7.2",
+    "lucide-react": "^1.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260917.1",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^22.13.9",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.1",
+    "vitest": "^3.0.8",
+    "wrangler": "^4.134.0"
+  }
+}

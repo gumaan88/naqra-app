@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom child-friendly button styling */
+.btn-child {
+  @apply min-h-[56px] min-w-[56px] font-bold rounded-2xl shadow-md active:scale-95 transition-all duration-150 flex items-center justify-center cursor-pointer;
+}
+
+/* Letter card transitions */
+.letter-card {
+  @apply w-16 h-16 sm:w-20 sm:h-20 text-3xl sm:text-4xl font-extrabold rounded-2xl flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer select-none active:scale-90 border-2;
+}
+
+/* Slot for progress word */
+.letter-slot {
+  @apply w-14 h-16 sm:w-16 sm:h-20 text-3xl sm:text-4xl font-extrabold rounded-2xl flex items-center justify-center border-2 border-dashed border-brand-turquoise/40 bg-white/70 shadow-sm transition-all duration-200;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.3s ease-in-out;
+}
+
+@keyframes hintGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 25px 8px rgba(255, 200, 87, 0.9);
+    transform: scale(1.08);
+  }
+}
+
+.animate-hint {
+  animation: hintGlow 1.2s ease-in-out infinite;
+  border-color: #FFC857 !important;
+  background-color: #FFFDF0 !important;
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "naqra-app",
+  "main": "server/index.ts",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "naqra_db",
+      "database_id": "e7afd70e-c46f-4557-926a-962e878cd238"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "routes": [
+    {
+      "pattern": "naqra.gumaan.app",
+      "custom_domain": true
+    }
+  ]
+}
