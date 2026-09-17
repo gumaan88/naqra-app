@@ -7,6 +7,7 @@ import { gamesRoutes } from './routes/games';
 import { syncRoutes } from './routes/sync';
 import { analyticsRoutes } from './routes/analytics';
 import { adminRoutes } from './routes/admin';
+import { wordsRoutes } from './routes/words';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -20,8 +21,10 @@ app.use('/api/*', cors({
 // Mount API routes
 app.route('/api/auth', authRoutes);
 app.route('/api/children', childrenRoutes);
+app.route('/api/words', wordsRoutes);
 app.route('/api', gamesRoutes);
 app.route('/api/sync', syncRoutes);
+app.route('/api/game-events', syncRoutes);
 app.route('/api/analytics', analyticsRoutes);
 app.route('/api/admin', adminRoutes);
 

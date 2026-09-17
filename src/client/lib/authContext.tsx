@@ -6,71 +6,81 @@ import { sound } from './audio';
 interface AuthContextType {
   user: User | null;
   activeChild: Child | null;
+  sessionRole: 'parent' | 'admin' | 'child' | null;
   isLoading: boolean;
   isMuted: boolean;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-  setActiveChild: (child: Child | null) => void;
+  loginParent: (token: string, user: User) => void;
+  loginChild: (token: string, child: Child) => void;
+  logout: () => Promise<void>;
   toggleSound: () => void;
-  refreshUser: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeChild, setActiveChildState] = useState<Child | null>(null);
+  const [activeChild, setActiveChild] = useState<Child | null>(null);
+  const [sessionRole, setSessionRole] = useState<'parent' | 'admin' | 'child' | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(sound.getMuted());
 
-  useEffect(() => {
-    // Check stored active child
-    const storedChild = localStorage.getItem('naqra_active_child');
-    if (storedChild) {
-      try {
-        setActiveChildState(JSON.parse(storedChild));
-      } catch {}
-    }
-
-    // Check stored token and verify
-    const token = getStoredToken();
-    if (token) {
-      api.auth.me()
-        .then(res => {
-          if (res.success && res.user) {
-            setUser(res.user);
-          }
-        })
-        .catch(() => {
-          setStoredToken(null);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    } else {
+  const checkAuth = async () => {
+    try {
+      const res = await api.auth.me();
+      if (res.success && res.authenticated) {
+        if (res.role === 'child' && res.child) {
+          setActiveChild(res.child);
+          setUser(null);
+          setSessionRole('child');
+        } else if ((res.role === 'parent' || res.role === 'admin') && res.user) {
+          setUser(res.user);
+          setActiveChild(null);
+          setSessionRole(res.role);
+        }
+      } else {
+        setUser(null);
+        setActiveChild(null);
+        setSessionRole(null);
+        setStoredToken(null);
+      }
+    } catch {
+      setUser(null);
+      setActiveChild(null);
+      setSessionRole(null);
+      setStoredToken(null);
+    } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    checkAuth();
   }, []);
 
-  const login = (token: string, loggedUser: User) => {
+  const loginParent = (token: string, loggedUser: User) => {
     setStoredToken(token);
     setUser(loggedUser);
+    setActiveChild(null);
+    setSessionRole(loggedUser.role as any);
   };
 
-  const logout = () => {
-    api.auth.logout().catch(() => {});
+  const loginChild = (token: string, childData: Child) => {
+    setStoredToken(token);
+    setActiveChild(childData);
     setUser(null);
-    setActiveChildState(null);
-    localStorage.removeItem('naqra_active_child');
+    setSessionRole('child');
   };
 
-  const setActiveChild = (child: Child | null) => {
-    setActiveChildState(child);
-    if (child) {
-      localStorage.setItem('naqra_active_child', JSON.stringify(child));
-    } else {
-      localStorage.removeItem('naqra_active_child');
-    }
+  const logout = async () => {
+    try {
+      await api.auth.logout();
+    } catch {}
+    setStoredToken(null);
+    setUser(null);
+    setActiveChild(null);
+    setSessionRole(null);
+    localStorage.removeItem('naqra_active_child');
   };
 
   const toggleSound = () => {
@@ -78,11 +88,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsMuted(muted);
   };
 
-  const refreshUser = async () => {
-    try {
-      const res = await api.auth.me();
-      if (res.success) setUser(res.user);
-    } catch {}
+  const refreshSession = async () => {
+    await checkAuth();
   };
 
   return (
@@ -90,13 +97,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         activeChild,
+        sessionRole,
         isLoading,
         isMuted,
-        login,
+        loginParent,
+        loginChild,
         logout,
-        setActiveChild,
         toggleSound,
-        refreshUser,
+        refreshSession,
       }}
     >
       {children}

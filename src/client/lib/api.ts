@@ -54,11 +54,38 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(details),
       }),
-    me: () => request<{ success: boolean; user: User }>('/api/auth/me'),
+    me: () => request<any>('/api/auth/me'),
+    childLogin: (login_code: string) =>
+      request<{ success: boolean; token: string; role: 'child'; child: Child; message: string }>('/api/auth/child-login', {
+        method: 'POST',
+        body: JSON.stringify({ login_code }),
+      }),
     logout: () => {
       setStoredToken(null);
       return request<{ success: boolean }>('/api/auth/logout', { method: 'POST' });
     },
+  },
+
+  words: {
+    list: () => request<{ success: boolean; count: number; words: any[] }>('/api/words'),
+    add: (data: { text: string; category?: string; difficulty_level?: number }) =>
+      request<{ success: boolean; message: string; wordId: string; alreadyExists?: boolean }>('/api/words', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    toggle: (id: string) =>
+      request<{ success: boolean; enabled: boolean; message: string }>(`/api/words/${id}/toggle`, {
+        method: 'PATCH',
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean; message: string }>(`/api/words/${id}`, {
+        method: 'DELETE',
+      }),
+    generate: (params: { count: number; level: number; category: string }) =>
+      request<{ success: boolean; requestedCount: number; generatedCount: number; words: any[]; message: string }>('/api/words/generate', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }),
   },
 
   children: {

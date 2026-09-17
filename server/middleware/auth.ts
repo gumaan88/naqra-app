@@ -1,6 +1,6 @@
-import { MiddlewareHandler } from 'hono';
+import { MiddlewareHandler, Context } from 'hono';
 import { Env, DbHelper } from '../db';
-import { User } from '../../shared/types';
+import { User, Child } from '../../shared/types';
 
 const DEFAULT_SECRET = 'naqra-platform-production-secret-key-2026';
 
@@ -43,7 +43,6 @@ export async function verifyToken(token: string, secret: string = DEFAULT_SECRET
       ['verify']
     );
 
-    // restore base64 padding
     let base64 = sig.replace(/-/g, '+').replace(/_/g, '/');
     while (base64.length % 4) base64 += '=';
     const sigBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
@@ -59,7 +58,7 @@ export async function verifyToken(token: string, secret: string = DEFAULT_SECRET
   }
 }
 
-// Hash password using Web Crypto SHA-256 with salt
+// Password hashing
 export async function hashPassword(password: string): Promise<string> {
   const salt = 'naqra_salt_';
   const data = new TextEncoder().encode(salt + password);
@@ -68,25 +67,40 @@ export async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export const authMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: { user: User } }> = async (c, next) => {
+// Helper to extract session token from Cookie or Authorization header
+export function extractToken(c: Context): string | null {
   const authHeader = c.req.header('Authorization');
-  let token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-  if (!token) {
-    // Check cookies
-    const cookie = c.req.header('Cookie') || '';
-    const match = cookie.match(/naqra_session=([^;]+)/);
-    if (match) token = match[1];
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.substring(7);
   }
+  const cookie = c.req.header('Cookie') || '';
+  const match = cookie.match(/naqra_session=([^;]+)/);
+  if (match) return match[1];
+  return null;
+}
 
+// Helper to set HttpOnly session cookie
+export function setSessionCookie(c: Context, token: string) {
+  // Max-Age = 30 days = 2592000s
+  c.header('Set-Cookie', `naqra_session=${token}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);
+}
+
+// Helper to clear session cookie
+export function clearSessionCookie(c: Context) {
+  c.header('Set-Cookie', 'naqra_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax');
+}
+
+// Middleware: strictly requires Parent or Admin session
+export const parentAuthMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: { user: User } }> = async (c, next) => {
+  const token = extractToken(c);
   if (!token) {
-    return c.json({ success: false, error: 'غير مصرح: يرجى تسجيل الدخول' }, 401);
+    return c.json({ success: false, error: 'غير مصرح: يرجى تسجيل الدخول كولي أمر' }, 401);
   }
 
   const secret = c.env.JWT_SECRET || DEFAULT_SECRET;
   const payload = await verifyToken(token, secret);
-  if (!payload || !payload.sub) {
-    return c.json({ success: false, error: 'جلسة الدخول غير صالحة أو منتهية' }, 401);
+  if (!payload || !payload.sub || (payload.role !== 'parent' && payload.role !== 'admin')) {
+    return c.json({ success: false, error: 'جلسة ولي الأمر غير صالحة أو منتهية' }, 401);
   }
 
   const db = new DbHelper(c.env.DB);
@@ -99,25 +113,60 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: { use
   await next();
 };
 
-export const optionalAuthMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: { user?: User } }> = async (c, next) => {
-  const authHeader = c.req.header('Authorization');
-  let token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
+// Middleware: strictly requires Child session
+export const childAuthMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: { child: Child; parentId: string } }> = async (c, next) => {
+  const token = extractToken(c);
   if (!token) {
-    const cookie = c.req.header('Cookie') || '';
-    const match = cookie.match(/naqra_session=([^;]+)/);
-    if (match) token = match[1];
+    return c.json({ success: false, error: 'غير مصرح: يرجى تسجيل دخول الطفل بالرمز' }, 401);
   }
 
+  const secret = c.env.JWT_SECRET || DEFAULT_SECRET;
+  const payload = await verifyToken(token, secret);
+  if (!payload || !payload.sub || payload.role !== 'child') {
+    return c.json({ success: false, error: 'جلسة الطفل غير صالحة أو منتهية' }, 401);
+  }
+
+  const db = new DbHelper(c.env.DB);
+  const child = await db.first<Child>('SELECT * FROM children WHERE id = ?', payload.sub);
+  if (!child) {
+    return c.json({ success: false, error: 'الملف الشخصي للطفل غير موجود' }, 401);
+  }
+
+  c.set('child', child);
+  c.set('parentId', child.user_id);
+  await next();
+};
+
+// Middleware: accepts either Parent or Child session
+export const anyAuthMiddleware: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: { sessionRole?: 'parent' | 'admin' | 'child'; user?: User; child?: Child; parentId?: string };
+}> = async (c, next) => {
+  const token = extractToken(c);
   if (token) {
     const secret = c.env.JWT_SECRET || DEFAULT_SECRET;
     const payload = await verifyToken(token, secret);
     if (payload && payload.sub) {
       const db = new DbHelper(c.env.DB);
-      const user = await db.first<User>('SELECT id, name, email, role, created_at FROM users WHERE id = ?', payload.sub);
-      if (user) c.set('user', user);
+      if (payload.role === 'child') {
+        const child = await db.first<Child>('SELECT * FROM children WHERE id = ?', payload.sub);
+        if (child) {
+          c.set('sessionRole', 'child');
+          c.set('child', child);
+          c.set('parentId', child.user_id);
+        }
+      } else if (payload.role === 'parent' || payload.role === 'admin') {
+        const user = await db.first<User>('SELECT id, name, email, role, created_at FROM users WHERE id = ?', payload.sub);
+        if (user) {
+          c.set('sessionRole', user.role as any);
+          c.set('user', user);
+          c.set('parentId', user.id);
+        }
+      }
     }
   }
-
   await next();
 };
+
+// Backward-compat alias for parent routes
+export const authMiddleware = parentAuthMiddleware;

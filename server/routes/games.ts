@@ -1,55 +1,88 @@
 import { Hono } from 'hono';
 import { Env, DbHelper } from '../db';
-import { Word, WordImageOption } from '../../shared/types';
+import { anyAuthMiddleware } from '../middleware/auth';
+import { Word, WordImageOption, Child, User } from '../../shared/types';
 
-export const gamesRoutes = new Hono<{ Bindings: Env }>();
+export const gamesRoutes = new Hono<{
+  Bindings: Env;
+  Variables: {
+    user?: User;
+    child?: Child;
+    sessionRole?: 'parent' | 'admin' | 'child';
+    parentId?: string;
+  };
+}>();
 
-// Get a content game pack suitable for child level
-// Rule 258: GET /api/game-pack?childId=&gameType=&count=
-gamesRoutes.get('/game-pack', async (c) => {
-  const childId = c.req.query('childId');
+// Get content game pack strictly isolated by authenticated parent / child
+// Rule 258 & Section 1 & 5: Child -> Parent -> Parent Words -> Words
+gamesRoutes.get('/game-pack', anyAuthMiddleware, async (c) => {
   const gameType = c.req.query('gameType') || 'word_letters';
-  const requestedCount = Math.min(20, Math.max(5, Number(c.req.query('count')) || 10));
-
+  const requestedCount = Math.min(20, Math.max(3, Number(c.req.query('count')) || 6));
   const db = new DbHelper(c.env.DB);
 
+  let parentId = c.get('parentId');
   let targetLevel = 1;
-  if (childId) {
-    const child = await db.first<{ current_level: number }>('SELECT current_level FROM children WHERE id = ?', childId);
-    if (child && child.current_level) {
-      targetLevel = child.current_level;
+
+  if (c.get('sessionRole') === 'child') {
+    const child = c.get('child');
+    if (child) {
+      targetLevel = child.current_level || 1;
+      parentId = child.user_id;
+    }
+  } else if (c.get('sessionRole') === 'parent' || c.get('sessionRole') === 'admin') {
+    targetLevel = Number(c.req.query('level')) || 1;
+  }
+
+  let words: Word[] = [];
+
+  // 1. Fetch from parent_words if parentId is known
+  if (parentId) {
+    words = await db.query<Word>(
+      `SELECT w.* FROM words w
+       JOIN parent_words pw ON pw.word_id = w.id
+       WHERE pw.parent_id = ? AND pw.enabled = 1 AND w.difficulty_level = ? AND w.status = 'approved'
+       ORDER BY RANDOM() LIMIT ?`,
+      parentId, targetLevel, requestedCount
+    );
+
+    // If parent has fewer words than requested count for this level, seed parent_words from approved curated words
+    if (words.length < requestedCount) {
+      await db.run(
+        `INSERT OR IGNORE INTO parent_words (id, parent_id, word_id, created_at, enabled, source)
+         SELECT 'pw_' || ? || '_' || id, ?, id, datetime('now'), 1, 'curated'
+         FROM words WHERE difficulty_level = ? AND status = 'approved'`,
+        parentId, parentId, targetLevel
+      );
+
+      // Re-query
+      words = await db.query<Word>(
+        `SELECT w.* FROM words w
+         JOIN parent_words pw ON pw.word_id = w.id
+         WHERE pw.parent_id = ? AND pw.enabled = 1 AND w.difficulty_level = ? AND w.status = 'approved'
+         ORDER BY RANDOM() LIMIT ?`,
+        parentId, targetLevel, requestedCount
+      );
     }
   }
 
-  // Fetch words matching the child's level and status 'approved'
-  let words = await db.query<Word>(
-    `SELECT * FROM words 
-     WHERE difficulty_level = ? AND status = 'approved'
-     ORDER BY RANDOM() LIMIT ?`,
-    targetLevel, requestedCount
-  );
-
-  // Fallback if not enough words at this exact level
-  if (words.length < requestedCount) {
-    const additional = await db.query<Word>(
+  // 2. Fallback if no parent session or no words
+  if (words.length === 0) {
+    words = await db.query<Word>(
       `SELECT * FROM words 
-       WHERE status = 'approved' AND id NOT IN (${words.length > 0 ? words.map(w => `'${w.id}'`).join(',') : "''"})
+       WHERE difficulty_level = ? AND status = 'approved'
        ORDER BY RANDOM() LIMIT ?`,
-      requestedCount - words.length
+      targetLevel, requestedCount
     );
-    words = [...words, ...additional];
   }
 
-  // If gameType is word_image, assemble 3 image options for each word
+  // If gameType is word_image, construct 3 image options per question
   if (gameType === 'word_image') {
-    // Only imageable words
     const imageableWords = words.filter(w => w.is_imageable && w.image_url);
     const poolOfAllImages = await db.query<Word>(
-      `SELECT id, text, image_url FROM words WHERE is_imageable = 1 AND image_url IS NOT NULL AND status = 'approved' ORDER BY RANDOM() LIMIT 50`
+      `SELECT id, text, image_url FROM words WHERE is_imageable = 1 AND image_url IS NOT NULL AND status = 'approved' ORDER BY RANDOM() LIMIT 40`
     );
 
     const questions = imageableWords.map((targetWord) => {
-      // Pick 2 distractors
       const distractors = poolOfAllImages
         .filter(w => w.id !== targetWord.id)
         .sort(() => Math.random() - 0.5)

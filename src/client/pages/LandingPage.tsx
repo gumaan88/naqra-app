@@ -24,7 +24,7 @@ export const LandingPage: React.FC = () => {
         {/* Primary Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
           <Link
-            to="/child-select"
+            to="/child-login"
             className="btn-child w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-brand-turquoise to-[#22B8AE] hover:from-[#1F9A92] hover:to-brand-turquoise text-white text-xl shadow-lg shadow-brand-turquoise/30 flex items-center justify-center gap-3"
           >
             <Play className="w-6 h-6 fill-white" />

@@ -15,7 +15,7 @@ interface Question {
 }
 
 export const WordImageGame: React.FC = () => {
-  const { activeChild, isMuted, toggleSound } = useAuth();
+  const { activeChild, isLoading, isMuted, toggleSound } = useAuth();
   const navigate = useNavigate();
 
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -32,12 +32,13 @@ export const WordImageGame: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    if (isLoading) return;
     if (!activeChild) {
-      navigate('/child-select');
+      navigate('/child-login');
       return;
     }
     loadQuestions();
-  }, [activeChild]);
+  }, [activeChild, isLoading]);
 
   const loadQuestions = async () => {
     setLoading(true);

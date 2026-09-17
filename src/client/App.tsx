@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPages';
-import { ChildSelectPage } from './pages/ChildSelectPage';
+import { ChildLoginPage } from './pages/ChildLoginPage';
 import { ChildDashboard } from './pages/ChildDashboard';
 import { WordLettersGame } from './pages/WordLettersGame';
 import { WordImageGame } from './pages/WordImageGame';
@@ -19,7 +19,8 @@ export const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<AuthPage />} />
-          <Route path="/child-select" element={<ChildSelectPage />} />
+          <Route path="/child-login" element={<ChildLoginPage />} />
+          <Route path="/child-select" element={<Navigate to="/child-login" replace />} />
           <Route path="/child-home" element={<ChildDashboard />} />
           <Route path="/game/word-letters" element={<WordLettersGame />} />
           <Route path="/game/word-image" element={<WordImageGame />} />

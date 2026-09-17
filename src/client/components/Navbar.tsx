@@ -1,14 +1,17 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/authContext';
-import { Volume2, VolumeX, BookOpen, Star, UserCheck, LogOut, Settings, ShieldCheck, Home } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Star, UserCheck, LogOut, Settings, ShieldCheck, Gamepad2 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
-  const { user, activeChild, isMuted, toggleSound, logout, setActiveChild } = useAuth();
+  const { user, activeChild, sessionRole, isMuted, toggleSound, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isChildMode = location.pathname.startsWith('/game') || location.pathname === '/child-home';
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   return (
     <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-brand-turquoise/20 px-4 py-3">
@@ -28,8 +31,8 @@ export const Navbar: React.FC = () => {
 
         {/* Right side tools */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Active Child Indicator */}
-          {activeChild && (
+          {/* Child Mode Active Profile */}
+          {sessionRole === 'child' && activeChild && (
             <div className="flex items-center gap-2 bg-brand-bg px-3 py-1.5 rounded-2xl border border-brand-turquoise/30">
               <div className="w-8 h-8 rounded-full bg-brand-yellow flex items-center justify-center font-black text-amber-950 text-sm shadow-inner overflow-hidden">
                 {activeChild.photo_url ? (
@@ -38,23 +41,13 @@ export const Navbar: React.FC = () => {
                   activeChild.display_name[0]
                 )}
               </div>
-              <span className="font-bold text-sm hidden sm:inline text-brand-text">
+              <span className="font-bold text-sm text-brand-text">
                 {activeChild.display_name}
               </span>
               <div className="flex items-center gap-1 bg-amber-100 text-amber-800 px-2 py-0.5 rounded-xl text-xs font-bold">
                 <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
                 <span>{activeChild.total_points}</span>
               </div>
-              <button
-                onClick={() => {
-                  setActiveChild(null);
-                  navigate('/child-select');
-                }}
-                title="تبديل الطفل"
-                className="text-xs text-brand-turquoise hover:underline font-semibold pr-1"
-              >
-                تبديل
-              </button>
             </div>
           )}
 
@@ -71,8 +64,17 @@ export const Navbar: React.FC = () => {
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
 
-          {/* Navigation Links based on role */}
-          {user ? (
+          {/* Role-Specific Actions */}
+          {sessionRole === 'child' ? (
+            <button
+              onClick={handleLogout}
+              title="خروج الطفل"
+              className="btn-child !min-h-[42px] px-3.5 !rounded-xl bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 text-xs font-bold flex items-center gap-1"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">خروج</span>
+            </button>
+          ) : user ? (
             <div className="flex items-center gap-2">
               <Link
                 to="/parent"
@@ -101,7 +103,7 @@ export const Navbar: React.FC = () => {
               )}
 
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 title="تسجيل الخروج"
                 className="btn-child !min-h-[42px] !min-w-[42px] w-10 h-10 !rounded-xl bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
               >
@@ -109,13 +111,22 @@ export const Navbar: React.FC = () => {
               </button>
             </div>
           ) : (
-            <Link
-              to="/login"
-              className="btn-child !min-h-[42px] px-4 !rounded-xl bg-brand-purple text-white text-xs font-bold hover:bg-opacity-95 shadow-sm"
-            >
-              <UserCheck className="w-4 h-4 ml-1" />
-              <span>دخول ولي الأمر</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/child-login"
+                className="btn-child !min-h-[42px] px-3.5 !rounded-xl bg-brand-turquoise text-white text-xs font-bold hover:bg-opacity-95 shadow-sm flex items-center gap-1"
+              >
+                <Gamepad2 className="w-4 h-4" />
+                <span>دخول الطفل</span>
+              </Link>
+              <Link
+                to="/login"
+                className="btn-child !min-h-[42px] px-3.5 !rounded-xl bg-brand-purple text-white text-xs font-bold hover:bg-opacity-95 shadow-sm flex items-center gap-1"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span className="hidden sm:inline">ولي الأمر</span>
+              </Link>
+            </div>
           )}
         </div>
       </div>

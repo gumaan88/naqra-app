@@ -1,74 +1,60 @@
 import { Hono } from 'hono';
 import { Env, DbHelper } from '../db';
-import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
+import { parentAuthMiddleware, childAuthMiddleware } from '../middleware/auth';
 import { User, Child } from '../../shared/types';
 
-export const childrenRoutes = new Hono<{ Bindings: Env; Variables: { user: User } }>();
+export const childrenRoutes = new Hono<{
+  Bindings: Env;
+  Variables: { user?: User; child?: Child; parentId?: string };
+}>();
 
-// Get children for parent dashboard (requires auth)
-childrenRoutes.get('/', authMiddleware, async (c) => {
-  const user = c.get('user');
+// Helper to generate a unique 4-digit login code
+async function generateUniqueLoginCode(db: DbHelper): Promise<string> {
+  let attempts = 0;
+  while (attempts < 30) {
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const existing = await db.first('SELECT id FROM children WHERE local_code = ?', code);
+    if (!existing) {
+      return code;
+    }
+    attempts++;
+  }
+  // Fallback to 5-digit if 4-digit space has collision
+  return Math.floor(10000 + Math.random() * 90000).toString();
+}
+
+// Get children for parent dashboard (Parent only)
+// Strictly filtered by authenticated parent session ID
+childrenRoutes.get('/', parentAuthMiddleware, async (c) => {
+  const user = c.get('user')!;
   const db = new DbHelper(c.env.DB);
 
   const children = await db.query<Child>(
-    'SELECT * FROM children WHERE user_id = ? ORDER BY created_at ASC',
+    'SELECT id, user_id, display_name, age_or_birth_year, gender_optional, photo_url, local_code, current_level, total_points, created_at, updated_at FROM children WHERE user_id = ? ORDER BY created_at ASC',
     user.id
   );
 
   return c.json({ success: true, children });
 });
 
-// Public / Trusted device list: get children for child selection screen
-// Allowed by specifying userId via query or session, or returning available profiles for local household
-childrenRoutes.get('/family-profiles', optionalAuthMiddleware, async (c) => {
-  const db = new DbHelper(c.env.DB);
-  const user = c.get('user');
-  const userId = user?.id || c.req.query('userId');
-
-  let query = 'SELECT id, display_name, photo_url, current_level, total_points, (local_code IS NOT NULL AND local_code != "") as has_pin FROM children';
-  let params: any[] = [];
-
-  if (userId) {
-    query += ' WHERE user_id = ?';
-    params.push(userId);
-  }
-  query += ' ORDER BY created_at ASC';
-
-  const profiles = await db.query<any>(query, ...params);
-  return c.json({ success: true, profiles });
-});
-
-// Verify child local PIN
-childrenRoutes.post('/:id/verify-pin', async (c) => {
-  const childId = c.req.param('id');
-  const { pin } = await c.req.json();
-  const db = new DbHelper(c.env.DB);
-
-  const child = await db.first<any>('SELECT * FROM children WHERE id = ?', childId);
-  if (!child) {
-    return c.json({ success: false, error: 'لم يتم العثور على الملف الشخصي للطفل' }, 404);
-  }
-
-  if (!child.local_code || child.local_code === '' || child.local_code === pin) {
-    return c.json({
-      success: true,
-      child: {
-        id: child.id,
-        user_id: child.user_id,
-        display_name: child.display_name,
-        photo_url: child.photo_url,
-        current_level: child.current_level,
-        total_points: child.total_points,
-      }
-    });
-  }
-
-  return c.json({ success: false, error: 'الرمز غير صحيح' }, 401);
+// Current authenticated child info (Child only)
+childrenRoutes.get('/current', childAuthMiddleware, async (c) => {
+  const child = c.get('child')!;
+  return c.json({
+    success: true,
+    child: {
+      id: child.id,
+      display_name: child.display_name,
+      photo_url: child.photo_url,
+      current_level: child.current_level,
+      total_points: child.total_points,
+    }
+  });
 });
 
 // Create child (Parent only)
-childrenRoutes.post('/', authMiddleware, async (c) => {
-  const user = c.get('user');
+childrenRoutes.post('/', parentAuthMiddleware, async (c) => {
+  const user = c.get('user')!;
   const body = await c.req.json();
   const { display_name, age_or_birth_year, gender_optional, photo_url, local_code, current_level } = body;
 
@@ -76,16 +62,38 @@ childrenRoutes.post('/', authMiddleware, async (c) => {
     return c.json({ success: false, error: 'اسم الطفل مطلوب' }, 400);
   }
 
+  const db = new DbHelper(c.env.DB);
+  let finalCode = (local_code && String(local_code).trim()) || '';
+
+  // Check custom code uniqueness if provided, or generate a random unique 4-digit code
+  if (finalCode) {
+    const existingCode = await db.first('SELECT id FROM children WHERE local_code = ?', finalCode);
+    if (existingCode) {
+      return c.json({ success: false, error: 'هذا الرمز مستخدم لطفل آخر، اختر رمزاً مختلفاً' }, 409);
+    }
+  } else {
+    finalCode = await generateUniqueLoginCode(db);
+  }
+
   const childId = `c_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
   const level = Number(current_level) || 1;
 
-  const db = new DbHelper(c.env.DB);
-  await db.run(
-    `INSERT INTO children (id, user_id, display_name, age_or_birth_year, gender_optional, photo_url, local_code, current_level, total_points, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-    childId, user.id, display_name.trim(), age_or_birth_year || null, gender_optional || null, photo_url || null, local_code || null, level, now, now
-  );
+  try {
+    await db.run(
+      `INSERT INTO children (id, user_id, display_name, age_or_birth_year, gender_optional, photo_url, local_code, current_level, total_points, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      childId, user.id, display_name.trim(), age_or_birth_year || null, gender_optional || null, photo_url || null, finalCode, level, now, now
+    );
+  } catch (err: any) {
+    // If unique constraint collision occurred, retry with newly generated code
+    finalCode = await generateUniqueLoginCode(db);
+    await db.run(
+      `INSERT INTO children (id, user_id, display_name, age_or_birth_year, gender_optional, photo_url, local_code, current_level, total_points, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      childId, user.id, display_name.trim(), age_or_birth_year || null, gender_optional || null, photo_url || null, finalCode, level, now, now
+    );
+  }
 
   const child: Child = {
     id: childId,
@@ -94,7 +102,7 @@ childrenRoutes.post('/', authMiddleware, async (c) => {
     age_or_birth_year: age_or_birth_year || undefined,
     gender_optional: gender_optional || undefined,
     photo_url: photo_url || undefined,
-    local_code: local_code || undefined,
+    local_code: finalCode,
     current_level: level,
     total_points: 0,
     created_at: now,
@@ -105,8 +113,8 @@ childrenRoutes.post('/', authMiddleware, async (c) => {
 });
 
 // Update child (Parent only)
-childrenRoutes.patch('/:id', authMiddleware, async (c) => {
-  const user = c.get('user');
+childrenRoutes.patch('/:id', parentAuthMiddleware, async (c) => {
+  const user = c.get('user')!;
   const childId = c.req.param('id');
   const body = await c.req.json();
   const db = new DbHelper(c.env.DB);
@@ -120,22 +128,34 @@ childrenRoutes.patch('/:id', authMiddleware, async (c) => {
   const age = body.age_or_birth_year !== undefined ? body.age_or_birth_year : existing.age_or_birth_year;
   const gender = body.gender_optional !== undefined ? body.gender_optional : existing.gender_optional;
   const photo = body.photo_url !== undefined ? body.photo_url : existing.photo_url;
-  const code = body.local_code !== undefined ? body.local_code : existing.local_code;
   const level = body.current_level !== undefined ? Number(body.current_level) : existing.current_level;
+  let code = existing.local_code;
+
+  if (body.local_code !== undefined && body.local_code !== existing.local_code) {
+    const newCode = String(body.local_code).trim();
+    if (newCode) {
+      const existingCode = await db.first('SELECT id FROM children WHERE local_code = ? AND id != ?', newCode, childId);
+      if (existingCode) {
+        return c.json({ success: false, error: 'رمز الدخول هذا مستخدم بالفعل لطفل آخر' }, 409);
+      }
+      code = newCode;
+    }
+  }
+
   const now = new Date().toISOString();
 
   await db.run(
     `UPDATE children SET display_name = ?, age_or_birth_year = ?, gender_optional = ?, photo_url = ?, local_code = ?, current_level = ?, updated_at = ?
-     WHERE id = ?`,
-    displayName, age, gender, photo, code, level, now, childId
+     WHERE id = ? AND user_id = ?`,
+    displayName, age, gender, photo, code, level, now, childId, user.id
   );
 
-  return c.json({ success: true, message: 'تم تحديث بيانات الطفل بنجاح' });
+  return c.json({ success: true, message: 'تم تحديث بيانات الطفل بنجاح', local_code: code });
 });
 
 // Delete child (Parent only)
-childrenRoutes.delete('/:id', authMiddleware, async (c) => {
-  const user = c.get('user');
+childrenRoutes.delete('/:id', parentAuthMiddleware, async (c) => {
+  const user = c.get('user')!;
   const childId = c.req.param('id');
   const db = new DbHelper(c.env.DB);
 
@@ -144,6 +164,6 @@ childrenRoutes.delete('/:id', authMiddleware, async (c) => {
     return c.json({ success: false, error: 'غير مصرح أو الملف غير موجود' }, 404);
   }
 
-  await db.run('DELETE FROM children WHERE id = ?', childId);
+  await db.run('DELETE FROM children WHERE id = ? AND user_id = ?', childId, user.id);
   return c.json({ success: true, message: 'تم حذف ملف الطفل بنجاح' });
 });

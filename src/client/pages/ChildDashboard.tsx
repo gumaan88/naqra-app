@@ -1,20 +1,24 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/authContext';
-import { Star, Play, Award, Sparkles, BookOpen, Image as ImageIcon, ArrowRight } from 'lucide-react';
+import { Star, Play, Sparkles, BookOpen, Image as ImageIcon, LogOut } from 'lucide-react';
 import { sound } from '../lib/audio';
 
 export const ChildDashboard: React.FC = () => {
-  const { activeChild } = useAuth();
+  const { activeChild, isLoading, logout } = useAuth();
   const navigate = useNavigate();
 
-  if (!activeChild) {
+  useEffect(() => {
+    if (!isLoading && !activeChild) {
+      navigate('/child-login');
+    }
+  }, [isLoading, activeChild]);
+
+  if (isLoading || !activeChild) {
     return (
-      <div className="min-h-[calc(100vh-68px)] flex flex-col items-center justify-center p-4 text-center">
-        <h2 className="text-2xl font-black mb-4">يرجى اختيار طفل للبدء</h2>
-        <Link to="/child-select" className="btn-child px-6 py-3 bg-brand-turquoise text-white">
-          اختيار طفل
-        </Link>
+      <div className="min-h-[calc(100vh-68px)] flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 border-4 border-brand-turquoise border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="font-bold text-gray-500">جاري تحميل ألعابك يا بطل...</p>
       </div>
     );
   }
@@ -28,8 +32,14 @@ export const ChildDashboard: React.FC = () => {
     }
   };
 
+  const handleLogout = async () => {
+    sound.playTap();
+    await logout();
+    navigate('/child-login');
+  };
+
   return (
-    <div className="min-h-[calc(100vh-68px)] max-w-4xl mx-auto px-4 py-8 flex flex-col justify-between">
+    <div className="min-h-[calc(100vh-68px)] max-w-4xl mx-auto px-4 py-8 flex flex-col justify-between select-none">
       {/* Child Header Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-brand-turquoise/30 shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
         <div className="flex items-center gap-4 text-center sm:text-right">
@@ -52,15 +62,25 @@ export const ChildDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Total Points / Stars Counter */}
-        <div className="flex items-center gap-3 bg-gradient-to-r from-amber-100 to-amber-50 border border-amber-200 px-6 py-3 rounded-2xl shadow-inner">
-          <div className="w-10 h-10 rounded-full bg-brand-yellow flex items-center justify-center shadow-md">
-            <Star className="w-6 h-6 fill-amber-600 text-amber-600" />
+        {/* Total Points / Stars Counter & Logout */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 bg-gradient-to-r from-amber-100 to-amber-50 border border-amber-200 px-5 py-2.5 rounded-2xl shadow-inner">
+            <div className="w-9 h-9 rounded-full bg-brand-yellow flex items-center justify-center shadow-md">
+              <Star className="w-5 h-5 fill-amber-600 text-amber-600" />
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-black text-amber-950 leading-none">{activeChild.total_points}</div>
+              <div className="text-[11px] font-bold text-amber-800">نجمة مجمعة</div>
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-black text-amber-950 leading-none">{activeChild.total_points}</div>
-            <div className="text-xs font-bold text-amber-800">نجمة مجمعة</div>
-          </div>
+
+          <button
+            onClick={handleLogout}
+            title="خروج"
+            className="btn-child !min-h-[44px] !min-w-[44px] w-11 h-11 rounded-2xl bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600 border border-gray-200"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -125,14 +145,8 @@ export const ChildDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Back Button */}
-      <div className="text-center">
-        <Link
-          to="/child-select"
-          className="text-xs font-bold text-gray-500 hover:text-brand-turquoise hover:underline inline-flex items-center gap-1"
-        >
-          <span>← تبديل بطل القراءة</span>
-        </Link>
+      <div className="text-center text-xs text-gray-400 font-medium">
+        منصة نقرأ — القراءة متعة وسهولة 🌟
       </div>
     </div>
   );

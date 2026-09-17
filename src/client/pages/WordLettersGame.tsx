@@ -17,7 +17,7 @@ import { GameRoundResult, ClientSyncBatch } from '@shared/types';
 import { Star, Sparkles, Home, Volume2, VolumeX, ArrowLeft } from 'lucide-react';
 
 export const WordLettersGame: React.FC = () => {
-  const { activeChild, isMuted, toggleSound } = useAuth();
+  const { activeChild, isLoading, isMuted, toggleSound } = useAuth();
   const navigate = useNavigate();
 
   const [words, setWords] = useState<Word[]>([]);
@@ -30,12 +30,13 @@ export const WordLettersGame: React.FC = () => {
 
   // Load words pack (Local-first from IndexedDB or API)
   useEffect(() => {
+    if (isLoading) return;
     if (!activeChild) {
-      navigate('/child-select');
+      navigate('/child-login');
       return;
     }
     loadPack();
-  }, [activeChild]);
+  }, [activeChild, isLoading]);
 
   const loadPack = async () => {
     setLoading(true);
@@ -209,27 +210,45 @@ export const WordLettersGame: React.FC = () => {
       {/* Upper Half: Large Arabic Target Word Without Tashkeel */}
       <div className="flex flex-col items-center justify-center my-auto py-6">
         <div className="bg-white/90 backdrop-blur rounded-3xl p-6 sm:p-8 border-2 border-brand-turquoise/40 shadow-xl w-full text-center relative overflow-hidden">
-          <div className="text-xs font-bold text-gray-400 mb-2">اقْرَأِ الْكَلِمَةَ ثُمَّ اخْتَرِ حُرُوفَهَا:</div>
+          <div className="text-xs font-bold text-gray-400 mb-3">اقْرَأِ الْكَلِمَةَ ثُمَّ اخْتَرِ الْحَرْفَ الْمُمَيَّز:</div>
           <div
-            className="text-6xl sm:text-7xl md:text-8xl font-black text-brand-text tracking-wider leading-none py-2"
+            className="flex items-center justify-center gap-1 sm:gap-2 text-6xl sm:text-7xl md:text-8xl font-black py-2 select-none"
             style={{ fontFamily: 'Noto Sans Arabic, Tajawal, sans-serif' }}
           >
-            {targetWordClean}
+            {roundState.targetLetters.map((char, i) => {
+              const isPast = i < roundState.expectedIndex;
+              const isCurrent = i === roundState.expectedIndex;
+              return (
+                <span
+                  key={i}
+                  className={`transition-all duration-200 inline-flex items-center justify-center min-w-[1.2ch] px-1 rounded-2xl ${
+                    isCurrent
+                      ? 'text-brand-turquoise scale-110 bg-teal-50/90 border-b-4 border-brand-turquoise shadow-md ring-2 ring-brand-turquoise/30'
+                      : isPast
+                      ? 'text-brand-success opacity-80'
+                      : 'text-brand-text'
+                  }`}
+                >
+                  {char}
+                </span>
+              );
+            })}
           </div>
 
           {/* Progress slots: slot for each letter of the target word */}
           <div className="flex items-center justify-center gap-2 sm:gap-3 mt-6">
             {roundState.targetLetters.map((char, index) => {
               const isFilled = index < roundState.expectedIndex;
+              const isActive = index === roundState.expectedIndex;
               return (
                 <div
                   key={index}
                   className={`letter-slot ${
                     isFilled
                       ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md'
-                      : index === roundState.expectedIndex
-                      ? 'border-brand-turquoise bg-teal-50/50'
-                      : ''
+                      : isActive
+                      ? 'border-2 border-brand-turquoise bg-teal-50/80 shadow-md scale-105 ring-4 ring-brand-turquoise/20'
+                      : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
                   }`}
                 >
                   {isFilled ? char : ''}
