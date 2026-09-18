@@ -235,6 +235,18 @@ export const WordLettersGame: React.FC = () => {
 
       {/* Lower Half: Shuffled Letter Cards */}
       <div className="pb-8">
+        {/* Prominent, beautifully styled guidance prompt above letter cards */}
+        {roundState.expectedIndex < roundState.targetLetters.length && (
+          <div className="flex items-center justify-center mb-4">
+            <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-2xl bg-white border-2 border-brand-turquoise/40 shadow-sm text-sm sm:text-base font-bold text-teal-900">
+              <span className="text-gray-600">الحَرْفُ المَطْلُوب:</span>
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-turquoise text-white font-black text-xl shadow-sm">
+                {roundState.targetLetters[roundState.expectedIndex]}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 max-w-lg mx-auto">
           {roundState.cards.map((card) => {
             const isUsed = card.isUsed;

@@ -91,7 +91,7 @@ export const ArabicWordDisplay: React.FC<ArabicWordDisplayProps> = ({ word, expe
   }, [word, expectedIndex, graphemes]);
 
   return (
-    <div className="relative inline-block select-none my-2">
+    <div className="relative select-none py-2 sm:py-4">
       {/* 
         Single unbroken Text Node:
         Crucial educational rule: preserves Arabic contextual shaping completely.
@@ -100,22 +100,16 @@ export const ArabicWordDisplay: React.FC<ArabicWordDisplayProps> = ({ word, expe
       <div
         ref={textRef}
         dir="rtl"
-        className="text-6xl sm:text-7xl md:text-8xl font-black text-brand-text tracking-normal leading-relaxed text-center"
+        className="text-6xl sm:text-7xl md:text-8xl font-black text-brand-text tracking-normal text-center"
         style={{
           fontFamily: "'Noto Sans Arabic', 'Tajawal', sans-serif",
           letterSpacing: 0,
+          lineHeight: 1.35,
           fontFeatureSettings: '"kern" 1, "liga" 1',
         }}
       >
         {word}
       </div>
-
-      {/* Subtle indicator of current letter without breaking word text */}
-      {expectedIndex < graphemes.length && (
-        <div className="text-center text-xs font-bold text-brand-turquoise mt-1">
-          الحرف المطلوب: <span className="text-base font-black px-1.5 py-0.5 rounded-lg bg-teal-50 border border-teal-200">{graphemes[expectedIndex].grapheme}</span>
-        </div>
-      )}
     </div>
   );
 };
