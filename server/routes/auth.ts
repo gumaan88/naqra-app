@@ -236,7 +236,7 @@ authRoutes.get('/me', anyAuthMiddleware, async (c) => {
     return c.json({
       success: true,
       authenticated: true,
-      role: 'parent',
+      role: user!.role,
       user,
     });
   }

@@ -30,6 +30,7 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   }
 
   const res = await fetch(endpoint, {
+    credentials: 'include',
     ...options,
     headers,
   });

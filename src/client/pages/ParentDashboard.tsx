@@ -53,19 +53,10 @@ export const ParentDashboard: React.FC = () => {
   const [generatingAi, setGeneratingAi] = useState<boolean>(false);
   const [aiResultMsg, setAiResultMsg] = useState<string | null>(null);
 
-  // Protection: session persistence check
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/login');
-    }
-  }, [isLoading, user]);
-
-  useEffect(() => {
-    if (user) {
-      loadChildren();
-      loadParentWords();
-    }
-  }, [user]);
+    loadChildren();
+    loadParentWords();
+  }, []);
 
   const loadChildren = async () => {
     setLoading(true);

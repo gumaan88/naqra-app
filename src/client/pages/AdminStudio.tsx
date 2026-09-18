@@ -37,12 +37,8 @@ export const AdminStudio: React.FC = () => {
   const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      navigate('/login');
-      return;
-    }
     loadData();
-  }, [user, filterStatus, filterLevel, filterCategory]);
+  }, [filterStatus, filterLevel, filterCategory]);
 
   const loadData = async () => {
     setLoading(true);

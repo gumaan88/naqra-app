@@ -52,3 +52,16 @@
   border-color: #FFC857 !important;
   background-color: #FFFDF0 !important;
 }
+
+/* CSS Custom Highlight API styles for connected Arabic reading without letter breaking */
+::highlight(completed-letters) {
+  color: #10B981;
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+::highlight(current-letter) {
+  color: #0D9488;
+  background-color: rgba(13, 148, 136, 0.22);
+  text-decoration: underline 4px #0D9488;
+  text-underline-offset: 8px;
+}

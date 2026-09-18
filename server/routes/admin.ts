@@ -3,6 +3,7 @@ import { Env, DbHelper } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { User, Word } from '../../shared/types';
 import { normalizeArabicText, isValidArabicWord } from '../../shared/arabic';
+import { EXPANDED_ARABIC_DICTIONARY } from './words';
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
@@ -102,7 +103,7 @@ adminRoutes.post('/words/generate', async (c) => {
     if (c.env.AI) {
       try {
         const prompt = `أنت خبير لغوي للأطفال. اقترح قائمة من ${count} كلمات عربية ملموسة وبسيطة للأطفال في فئة "${category}" بمستوى صعوبة ${level} (طول الكلمة ${level <= 2 ? '2 إلى 3 أحرف' : '4 إلى 5 أحرف'}). أرجع النتيجة على شكل JSON فقط: [{"word": "قط", "category": "${category}", "level": ${level}, "is_imageable": true}]`;
-        const aiResponse: any = await c.env.AI.run('@cf/meta/llama-3-8b-instruct', {
+        const aiResponse: any = await c.env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
           messages: [{ role: 'user', content: prompt }]
         });
         if (aiResponse && aiResponse.response) {
@@ -126,17 +127,12 @@ adminRoutes.post('/words/generate', async (c) => {
       }
     }
 
-    // Fallback linguistic templates if AI returned nothing or unavailable
-    if (generatedCandidates.length === 0) {
-      const linguisticBank: Record<string, string[]> = {
-        'حيوانات': ['ذئب', 'غزال', 'جمل', 'فهد', 'ثعلب', 'حوت', 'دلفين', 'صقر'],
-        'فواكه': ['تين', 'عنب', 'موز', 'خوخ', 'رمان', 'ليمون', 'بطيخ', 'كمثرى'],
-        'طبيعة': ['نهر', 'بحر', 'مطر', 'سحاب', 'جبل', 'وادي', 'غابة', 'رمل'],
-        'أدوات': ['دفتر', 'مسطرة', 'مقص', 'فرشاة', 'حقيبة', 'ممحاة', 'لوح'],
-      };
-
-      const wordsForCat = linguisticBank[category] || linguisticBank['حيوانات'];
-      for (const w of wordsForCat.slice(0, count)) {
+    // Fallback linguistic templates if AI returned nothing or insufficient candidates
+    if (generatedCandidates.length < count) {
+      const wordsForCat = EXPANDED_ARABIC_DICTIONARY[category] || EXPANDED_ARABIC_DICTIONARY['حيوانات'];
+      const needed = count - generatedCandidates.length;
+      const shuffled = [...wordsForCat].sort(() => Math.random() - 0.5);
+      for (const w of shuffled.slice(0, needed)) {
         generatedCandidates.push({
           text: w,
           category,
@@ -202,4 +198,56 @@ adminRoutes.get('/stats', async (c) => {
     totalChildren: totalChildren?.count || 0,
     totalSessions: totalSessions?.count || 0,
   });
+});
+
+// Admin-only AI Diagnostic Test endpoint
+adminRoutes.all('/ai/test', async (c) => {
+  const bindingPresent = !!c.env.AI;
+  if (!bindingPresent) {
+    return c.json({
+      ok: false,
+      bindingPresent: false,
+      error: 'Workers AI binding (c.env.AI) is undefined in Worker environment',
+    }, 500);
+  }
+
+  let model = '@cf/meta/llama-3.2-3b-instruct';
+  try {
+    const aiRes: any = await c.env.AI.run(model, {
+      messages: [{ role: 'user', content: 'Give 3 Arabic words for animals as JSON: {"words": ["قط", "كلب", "أسد"]}' }]
+    });
+
+    return c.json({
+      ok: true,
+      bindingPresent: true,
+      model,
+      responseReceived: true,
+      rawOutput: aiRes?.response || aiRes,
+    });
+  } catch (err: any) {
+    // Try fallback model
+    try {
+      model = '@cf/meta/llama-3.1-8b-instruct-fp8';
+      const aiRes2: any = await c.env.AI.run(model, {
+        messages: [{ role: 'user', content: 'Give 3 Arabic words for animals as JSON: {"words": ["قط", "كلب", "أسد"]}' }]
+      });
+
+      return c.json({
+        ok: true,
+        bindingPresent: true,
+        model,
+        responseReceived: true,
+        rawOutput: aiRes2?.response || aiRes2,
+        primaryModelError: err.message || String(err),
+      });
+    } catch (fallbackErr: any) {
+      return c.json({
+        ok: false,
+        bindingPresent: true,
+        model,
+        responseReceived: false,
+        error: `Primary failed: ${err.message || String(err)} | Fallback failed: ${fallbackErr.message || String(fallbackErr)}`,
+      }, 500);
+    }
+  }
 });

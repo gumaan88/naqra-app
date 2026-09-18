@@ -10,6 +10,7 @@ import { WordImageGame } from './pages/WordImageGame';
 import { GameSummary } from './pages/GameSummary';
 import { ParentDashboard } from './pages/ParentDashboard';
 import { AdminStudio } from './pages/AdminStudio';
+import { RouteGuard } from './components/RouteGuard';
 
 export const App: React.FC = () => {
   return (
@@ -21,12 +22,54 @@ export const App: React.FC = () => {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/child-login" element={<ChildLoginPage />} />
           <Route path="/child-select" element={<Navigate to="/child-login" replace />} />
-          <Route path="/child-home" element={<ChildDashboard />} />
-          <Route path="/game/word-letters" element={<WordLettersGame />} />
-          <Route path="/game/word-image" element={<WordImageGame />} />
-          <Route path="/summary" element={<GameSummary />} />
-          <Route path="/parent" element={<ParentDashboard />} />
-          <Route path="/admin" element={<AdminStudio />} />
+          <Route
+            path="/child-home"
+            element={
+              <RouteGuard requiredRole="child">
+                <ChildDashboard />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/game/word-letters"
+            element={
+              <RouteGuard requiredRole="child">
+                <WordLettersGame />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/game/word-image"
+            element={
+              <RouteGuard requiredRole="child">
+                <WordImageGame />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/summary"
+            element={
+              <RouteGuard requiredRole="child">
+                <GameSummary />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/parent"
+            element={
+              <RouteGuard requiredRole="parent">
+                <ParentDashboard />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RouteGuard requiredRole="admin">
+                <AdminStudio />
+              </RouteGuard>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

@@ -5,23 +5,10 @@ import { Star, Play, Sparkles, BookOpen, Image as ImageIcon, LogOut } from 'luci
 import { sound } from '../lib/audio';
 
 export const ChildDashboard: React.FC = () => {
-  const { activeChild, isLoading, logout } = useAuth();
+  const { activeChild, logout } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!isLoading && !activeChild) {
-      navigate('/child-login');
-    }
-  }, [isLoading, activeChild]);
-
-  if (isLoading || !activeChild) {
-    return (
-      <div className="min-h-[calc(100vh-68px)] flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-brand-turquoise border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="font-bold text-gray-500">جاري تحميل ألعابك يا بطل...</p>
-      </div>
-    );
-  }
+  if (!activeChild) return null;
 
   const startGame = (gameType: 'word_letters' | 'word_image') => {
     sound.playTap();

@@ -32,13 +32,8 @@ export const WordImageGame: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!activeChild) {
-      navigate('/child-login');
-      return;
-    }
     loadQuestions();
-  }, [activeChild, isLoading]);
+  }, []);
 
   const loadQuestions = async () => {
     setLoading(true);

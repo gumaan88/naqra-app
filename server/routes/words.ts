@@ -11,7 +11,7 @@ export const wordsRoutes = new Hono<{
 
 // Comprehensive curated dictionary of Arabic words for reliable AI/linguistic expansion
 // Guarantees that requests for 20, 30, or 50 words NEVER get truncated or capped at 8!
-const EXPANDED_ARABIC_DICTIONARY: Record<string, string[]> = {
+export const EXPANDED_ARABIC_DICTIONARY: Record<string, string[]> = {
   'حيوانات': [
     'أسد', 'نمر', 'فهد', 'ذئب', 'ثعلب', 'دب', 'غزال', 'جمل', 'حصان', 'حمار',
     'فيل', 'زرافة', 'قرد', 'أرنب', 'قط', 'كلب', 'فأر', 'سنجاب', 'خروف', 'ماعز',
@@ -167,8 +167,7 @@ wordsRoutes.delete('/:id', parentAuthMiddleware, async (c) => {
   return c.json({ success: true, message: 'تمت إزالة الكلمة من مجموعتك بنجاح' });
 });
 
-// POST /api/words/generate: AI generation with multi-pass batching
-// Solves root cause: never truncates to 8 words!
+// POST /api/words/generate: AI generation with multi-pass batching & full diagnostics
 wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
@@ -178,6 +177,16 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
 
   const db = new DbHelper(c.env.DB);
   const now = new Date().toISOString();
+
+  let generatedTotal = 0;
+  let duplicatesCount = 0;
+  let rejectedCount = 0;
+  let aiCallsSuccess = 0;
+  let aiCallsAttempted = 0;
+  let aiModelUsed = '@cf/meta/llama-3.2-3b-instruct';
+
+  console.log(`[AI-GEN] Request received: count=${requestedCount}, level=${level}, category="${category}", parent=${user.id}`);
+  console.log(`[AI-GEN] Workers AI binding present: ${!!c.env.AI}`);
 
   const acceptedWords: Word[] = [];
   const processedNormSet = new Set<string>();
@@ -194,58 +203,92 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
   }
 
   let attempts = 0;
-  const maxAttempts = 8;
+  const maxAttempts = 10;
 
   while (acceptedWords.length < requestedCount && attempts < maxAttempts) {
     attempts++;
     const needed = requestedCount - acceptedWords.length;
-    const batchSize = Math.min(15, needed + 4);
+    const batchSize = Math.min(20, needed + 5);
 
     let candidates: string[] = [];
 
-    // 1. Try Workers AI if available
+    // 1. Try Cloudflare Workers AI
     if (c.env.AI) {
+      aiCallsAttempted++;
       try {
-        const prompt = `أنت خبير لغوي متخصص في تعليم الأطفال. اقترح بالضبط قائمة من ${batchSize} كلمات عربية حقيقية غير مكررة في فئة "${category}" بمستوى صعوبة ${level} (كلمات ${level <= 2 ? 'من 2 إلى 3 أحرف' : 'من 4 إلى 5 أحرف'}). أرجع النتيجة على شكل JSON فقط: {"words": ["كلمة1", "كلمة2", ...]}`;
-        const aiResponse: any = await c.env.AI.run('@cf/meta/llama-3-8b-instruct', {
-          messages: [{ role: 'user', content: prompt }]
-        });
+        console.log(`[AI-GEN] Attempt ${attempts}: Calling ${aiModelUsed} for ${batchSize} words...`);
+        const prompt = `أنت خبير لغوي متخصص في تعليم القراءة العربية للأطفال.
+المطلوب: اقترح بالضبط ${batchSize} كلمات عربية حقيقية غير مكررة في فئة "${category}" بمستوى صعوبة ${level} (${level <= 2 ? 'كلمات بسيطة من 2 إلى 3 أحرف' : 'كلمات من 4 إلى 5 أحرف'}).
+أرجع النتيجة بصيغة JSON فقط بهذا الشكل الصارم دون أي نص إضافي:
+{"words": ["كلمة1", "كلمة2", "كلمة3"]}`;
 
-        if (aiResponse && aiResponse.response) {
-          const jsonMatch = aiResponse.response.match(/\{[\s\S]*\}/);
+        let aiResponse: any;
+        try {
+          aiResponse = await c.env.AI.run(aiModelUsed, {
+            messages: [{ role: 'user', content: prompt }]
+          });
+        } catch (mErr: any) {
+          console.warn(`[AI-GEN] Primary model ${aiModelUsed} error:`, mErr.message);
+          aiModelUsed = '@cf/meta/llama-3.1-8b-instruct-fp8';
+          aiResponse = await c.env.AI.run(aiModelUsed, {
+            messages: [{ role: 'user', content: prompt }]
+          });
+        }
+
+        const rawShape = typeof aiResponse === 'object' ? Object.keys(aiResponse) : typeof aiResponse;
+        console.log(`[AI-GEN] AI Response received. Shape: ${JSON.stringify(rawShape)}`);
+
+        const responseText = aiResponse?.response || (typeof aiResponse === 'string' ? aiResponse : JSON.stringify(aiResponse));
+        if (responseText) {
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
             if (Array.isArray(parsed.words)) {
               candidates = parsed.words;
+              aiCallsSuccess++;
+              console.log(`[AI-GEN] Parsed ${candidates.length} candidate words from AI JSON.`);
             }
           }
         }
-      } catch (aiErr) {
-        console.warn('Workers AI generation batch attempt error:', aiErr);
+      } catch (aiErr: any) {
+        console.error(`[AI-GEN] Workers AI execution error:`, aiErr.message || String(aiErr));
       }
     }
 
-    // 2. Supplement / Fallback from expanded rich linguistic dictionary
+    generatedTotal += candidates.length;
+
+    // 2. Fallback pool if AI was unavailable or produced insufficient candidates
     if (candidates.length < batchSize) {
       const catList = EXPANDED_ARABIC_DICTIONARY[category] || EXPANDED_ARABIC_DICTIONARY['حيوانات'];
       const filteredLinguistic = catList.filter(w => !processedNormSet.has(normalizeArabicText(w)));
       const shuffled = [...filteredLinguistic].sort(() => Math.random() - 0.5);
-      candidates = [...candidates, ...shuffled.slice(0, batchSize - candidates.length)];
+      const supplemental = shuffled.slice(0, batchSize - candidates.length);
+      candidates = [...candidates, ...supplemental];
+      generatedTotal += supplemental.length;
     }
 
-    // 3. Process candidates
+    // 3. Validate, Normalize, Deduplicate, and Insert candidates
     for (const rawText of candidates) {
       if (acceptedWords.length >= requestedCount) break;
-      if (!rawText || typeof rawText !== 'string') continue;
+      if (!rawText || typeof rawText !== 'string') {
+        rejectedCount++;
+        continue;
+      }
 
       const validation = isValidArabicWord(rawText);
-      if (!validation.valid) continue;
+      if (!validation.valid) {
+        rejectedCount++;
+        continue;
+      }
 
       const norm = normalizeArabicText(rawText);
-      if (processedNormSet.has(norm)) continue;
+      if (processedNormSet.has(norm)) {
+        duplicatesCount++;
+        continue;
+      }
       processedNormSet.add(norm);
 
-      // Find or insert into central words
+      // Find or insert into central words table
       let wordRow = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ?', norm);
       let wordId: string;
 
@@ -260,7 +303,7 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
         wordId = wordRow.id;
       }
 
-      // Link to parent_words
+      // Link to parent_words relation
       const relationId = `pw_${user.id}_${wordId}`;
       await db.run(
         `INSERT OR IGNORE INTO parent_words (id, parent_id, word_id, created_at, enabled, source)
@@ -282,14 +325,21 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
     }
   }
 
+  console.log(`[AI-GEN] Final: requested=${requestedCount}, generated=${generatedTotal}, accepted=${acceptedWords.length}, duplicates=${duplicatesCount}, rejected=${rejectedCount}`);
+
   const msg = acceptedWords.length >= requestedCount
     ? `تم بنجاح توليد ${acceptedWords.length} كلمة وإضافتها لمجموعتك`
-    : `تم إنشاء ${acceptedWords.length} كلمة من أصل ${requestedCount} وتعذر الحصول على المزيد بدون تكرار`;
+    : `تم إنشاء ${acceptedWords.length} كلمة من أصل ${requestedCount}`;
 
   return c.json({
     success: true,
-    requestedCount,
-    generatedCount: acceptedWords.length,
+    requested: requestedCount,
+    generated: generatedTotal,
+    accepted: acceptedWords.length,
+    duplicates: duplicatesCount,
+    rejected: rejectedCount,
+    aiUsed: aiCallsSuccess > 0,
+    aiModel: aiModelUsed,
     words: acceptedWords,
     message: msg
   });

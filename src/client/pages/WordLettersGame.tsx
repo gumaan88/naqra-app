@@ -15,6 +15,7 @@ import {
 } from '@shared/game-engine';
 import { GameRoundResult, ClientSyncBatch } from '@shared/types';
 import { Star, Sparkles, Home, Volume2, VolumeX, ArrowLeft } from 'lucide-react';
+import { ArabicWordDisplay } from '../components/ArabicWordDisplay';
 
 export const WordLettersGame: React.FC = () => {
   const { activeChild, isLoading, isMuted, toggleSound } = useAuth();
@@ -30,13 +31,8 @@ export const WordLettersGame: React.FC = () => {
 
   // Load words pack (Local-first from IndexedDB or API)
   useEffect(() => {
-    if (isLoading) return;
-    if (!activeChild) {
-      navigate('/child-login');
-      return;
-    }
     loadPack();
-  }, [activeChild, isLoading]);
+  }, []);
 
   const loadPack = async () => {
     setLoading(true);
@@ -210,33 +206,11 @@ export const WordLettersGame: React.FC = () => {
       {/* Upper Half: Large Arabic Target Word Without Tashkeel */}
       <div className="flex flex-col items-center justify-center my-auto py-6">
         <div className="bg-white/90 backdrop-blur rounded-3xl p-6 sm:p-8 border-2 border-brand-turquoise/40 shadow-xl w-full text-center relative overflow-hidden">
-          <div className="text-xs font-bold text-gray-400 mb-3">اقْرَأِ الْكَلِمَةَ ثُمَّ اخْتَرِ الْحَرْفَ الْمُمَيَّز:</div>
-          <div
-            className="flex items-center justify-center gap-1 sm:gap-2 text-6xl sm:text-7xl md:text-8xl font-black py-2 select-none"
-            style={{ fontFamily: 'Noto Sans Arabic, Tajawal, sans-serif' }}
-          >
-            {roundState.targetLetters.map((char, i) => {
-              const isPast = i < roundState.expectedIndex;
-              const isCurrent = i === roundState.expectedIndex;
-              return (
-                <span
-                  key={i}
-                  className={`transition-all duration-200 inline-flex items-center justify-center min-w-[1.2ch] px-1 rounded-2xl ${
-                    isCurrent
-                      ? 'text-brand-turquoise scale-110 bg-teal-50/90 border-b-4 border-brand-turquoise shadow-md ring-2 ring-brand-turquoise/30'
-                      : isPast
-                      ? 'text-brand-success opacity-80'
-                      : 'text-brand-text'
-                  }`}
-                >
-                  {char}
-                </span>
-              );
-            })}
-          </div>
+          <div className="text-xs font-bold text-gray-400 mb-2">اقْرَأِ الْكَلِمَةَ كَامِلَةً ثُمَّ اخْتَرِ الْحُرُوفَ بِالتَّرْتِيب:</div>
+          <ArabicWordDisplay word={targetWordClean} expectedIndex={roundState.expectedIndex} />
 
-          {/* Progress slots: slot for each letter of the target word */}
-          <div className="flex items-center justify-center gap-2 sm:gap-3 mt-6">
+          {/* Progress slots: slot for each letter of the target word in Visual RTL */}
+          <div dir="rtl" className="flex items-center justify-center gap-2 sm:gap-3 mt-6">
             {roundState.targetLetters.map((char, index) => {
               const isFilled = index < roundState.expectedIndex;
               const isActive = index === roundState.expectedIndex;

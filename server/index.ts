@@ -11,10 +11,11 @@ import { wordsRoutes } from './routes/words';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// CORS middleware
+// CORS middleware with credentials support
 app.use('/api/*', cors({
-  origin: '*',
-  allowHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin) => origin || '*',
+  credentials: true,
+  allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
 
@@ -34,6 +35,50 @@ app.get('/api/health', (c) => {
     status: 'ok',
     app: 'نقرأ - Naqra Platform',
     version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// AI Diagnostic Health Check
+app.get('/api/health-ai', async (c) => {
+  const bindingAvailable = !!c.env.AI;
+  const candidateModels = [
+    '@cf/meta/llama-3.2-3b-instruct',
+    '@cf/meta/llama-3.2-1b-instruct',
+    '@cf/meta/llama-3.1-8b-instruct-awq',
+    '@cf/meta/llama-3.1-8b-instruct-fp8',
+    '@cf/qwen/qwen1.5-7b-chat-awq',
+    '@cf/google/gemma-7b-it',
+    '@cf/mistral/mistral-7b-instruct-v0.2',
+  ];
+
+  const results: any[] = [];
+  let successfulModel = null;
+  let sampleOutput = null;
+
+  if (bindingAvailable) {
+    for (const model of candidateModels) {
+      try {
+        const res: any = await c.env.AI.run(model, {
+          messages: [{ role: 'user', content: 'Say "مرحبا" only.' }]
+        });
+        const out = res?.response || res;
+        results.push({ model, status: 'success', output: out });
+        if (!successfulModel) {
+          successfulModel = model;
+          sampleOutput = out;
+        }
+      } catch (err: any) {
+        results.push({ model, status: 'error', error: err.message || String(err) });
+      }
+    }
+  }
+
+  return c.json({
+    aiBindingAvailable: bindingAvailable,
+    successfulModel,
+    sampleOutput,
+    results,
     timestamp: new Date().toISOString()
   });
 });
