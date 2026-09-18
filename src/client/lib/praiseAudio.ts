@@ -1,11 +1,21 @@
-// Praise Audio Manager with Shuffle Bag Algorithm
+// Praise Audio Manager with Multi-Layer Sound Design & Shuffle Bag Algorithm
 // Pre-generated, 100% offline-ready natural human Arabic praise clips
-// Zero AI calls, zero gameplay latency, mobile autoplay handled
+// Zero AI calls during gameplay, zero latency, Android Chrome compatible
+
+import { sound } from './audio';
 
 export interface PraiseClip {
   id: string;
   text: string;
   url: string;
+}
+
+export type SoundProfileType = 'sparkle' | 'applause' | 'chime' | 'voice_only';
+
+export interface SoundProfile {
+  id: SoundProfileType;
+  name: string;
+  effect: () => void;
 }
 
 export const PRAISE_CLIPS: PraiseClip[] = [
@@ -23,15 +33,28 @@ export const PRAISE_CLIPS: PraiseClip[] = [
   { id: 'jameel_01', text: 'جَمِيلٌ جِدًّا!', url: '/audio/praise/jameel_01.mp3' },
 ];
 
+const SOUND_PROFILES: SoundProfile[] = [
+  { id: 'sparkle', name: 'Voice + Sparkle', effect: () => sound.playSparkle() },
+  { id: 'applause', name: 'Voice + Soft Applause', effect: () => sound.playSoftApplause() },
+  { id: 'chime', name: 'Voice + Cheerful Chime', effect: () => sound.playCheerfulChime() },
+  { id: 'voice_only', name: 'Voice Only', effect: () => {} },
+];
+
 class PraiseAudioManager {
-  private bag: PraiseClip[] = [];
-  private recentClipIds: string[] = [];
+  // Voice Shuffle Bag
+  private voiceBag: PraiseClip[] = [];
+  private recentVoiceIds: string[] = []; // tracks last 3 voices
+
+  // Profile Shuffle Bag
+  private profileBag: SoundProfile[] = [];
+  private recentProfileIds: SoundProfileType[] = []; // tracks last 2 profiles
+
   private audioCache: Map<string, HTMLAudioElement> = new Map();
-  private audioContext: AudioContext | null = null;
   private isUnlocked: boolean = false;
 
   constructor() {
-    this.initBag();
+    this.initVoiceBag();
+    this.initProfileBag();
     this.setupAutoplayUnlock();
     this.preloadClips();
   }
@@ -51,23 +74,23 @@ class PraiseAudioManager {
     });
   }
 
-  // Unlock AudioContext and mobile autoplay on first touch/tap
+  // Unlock AudioContext and mobile autoplay on first touch/tap (Android Chrome / iOS)
   private setupAutoplayUnlock() {
     if (typeof window === 'undefined') return;
 
     const unlockHandler = () => {
       if (this.isUnlocked) return;
-      
+
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx && !this.audioContext) {
-          this.audioContext = new AudioCtx();
-        }
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-          this.audioContext.resume();
+        if (AudioCtx) {
+          const tempCtx = new AudioCtx();
+          if (tempCtx.state === 'suspended') {
+            tempCtx.resume();
+          }
         }
 
-        // Silent playback buffer to unlock HTMLAudioElement on iOS/Android Chrome
+        // Silent playback buffer to unlock HTMLAudioElement on Android Chrome
         const silentAudio = new Audio();
         silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
         silentAudio.play().catch(() => {});
@@ -88,7 +111,7 @@ class PraiseAudioManager {
   }
 
   // Fisher-Yates shuffle
-  private shuffle(array: PraiseClip[]): PraiseClip[] {
+  private shuffle<T>(array: T[]): T[] {
     const arr = [...array];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -97,59 +120,119 @@ class PraiseAudioManager {
     return arr;
   }
 
-  // Initialize and replenish shuffle bag ensuring no recent repetitions
-  private initBag() {
+  // Initialize Voice Bag avoiding last 3 items
+  private initVoiceBag() {
     let newBag = this.shuffle(PRAISE_CLIPS);
-    
-    // Ensure the first item of the new bag is not in recent items
-    if (this.recentClipIds.length > 0 && newBag.length > 3) {
-      while (this.recentClipIds.includes(newBag[0].id)) {
+    if (this.recentVoiceIds.length > 0 && newBag.length > 3) {
+      let retries = 0;
+      while (this.recentVoiceIds.includes(newBag[0].id) && retries < 10) {
         newBag = this.shuffle(PRAISE_CLIPS);
+        retries++;
       }
     }
-    this.bag = newBag;
+    this.voiceBag = newBag;
   }
 
-  // Play next praise clip using Shuffle Bag algorithm
-  public playPraise(): string | null {
+  // Initialize Profile Bag avoiding last 2 items
+  private initProfileBag() {
+    let newBag = this.shuffle(SOUND_PROFILES);
+    if (this.recentProfileIds.length > 0 && newBag.length > 2) {
+      let retries = 0;
+      while (this.recentProfileIds.includes(newBag[0].id) && retries < 10) {
+        newBag = this.shuffle(SOUND_PROFILES);
+        retries++;
+      }
+    }
+    this.profileBag = newBag;
+  }
+
+  // Get next voice clip without repetition
+  private getNextVoiceClip(): PraiseClip | null {
+    if (this.voiceBag.length === 0) {
+      this.initVoiceBag();
+    }
+    const clip = this.voiceBag.pop() || null;
+    if (clip) {
+      this.recentVoiceIds.push(clip.id);
+      if (this.recentVoiceIds.length > 3) {
+        this.recentVoiceIds.shift();
+      }
+    }
+    return clip;
+  }
+
+  // Get next sound profile without repetition
+  private getNextProfile(): SoundProfile {
+    if (this.profileBag.length === 0) {
+      this.initProfileBag();
+    }
+    const profile = this.profileBag.pop() || SOUND_PROFILES[0];
+    this.recentProfileIds.push(profile.id);
+    if (this.recentProfileIds.length > 2) {
+      this.recentProfileIds.shift();
+    }
+    return profile;
+  }
+
+  // Play natural human praise with layered sound profile
+  public playCelebrationSuccess(streakCount: number = 0): { text: string; profile: SoundProfileType } | null {
     if (typeof window === 'undefined') return null;
 
-    // Check mute status from localStorage
     const isMuted = localStorage.getItem('naqra_sound_muted') === 'true';
     if (isMuted) return null;
 
-    // Replenish bag if empty
-    if (this.bag.length === 0) {
-      this.initBag();
-    }
+    // Pick next voice clip (history of last 3 prevented)
+    const clip = this.getNextVoiceClip();
+    if (!clip) return null;
 
-    const nextClip = this.bag.pop();
-    if (!nextClip) return null;
-
-    // Record in recent list (keep max 3)
-    this.recentClipIds.push(nextClip.id);
-    if (this.recentClipIds.length > 3) {
-      this.recentClipIds.shift();
-    }
-
+    // Play Layer 1: Natural Human Voice
     try {
-      let audio = this.audioCache.get(nextClip.id);
+      let audio = this.audioCache.get(clip.id);
       if (!audio) {
-        audio = new Audio(nextClip.url);
-        this.audioCache.set(nextClip.id, audio);
+        audio = new Audio(clip.url);
+        this.audioCache.set(clip.id, audio);
       }
       audio.currentTime = 0;
-      audio.play().catch(err => {
-        console.warn(`[PraiseAudio] Playback interrupted for ${nextClip.id}:`, err);
+      audio.play().catch((err) => {
+        console.warn(`[PraiseAudio] Voice playback interrupted:`, err);
       });
     } catch (err) {
-      console.warn(`[PraiseAudio] Error playing ${nextClip.id}:`, err);
+      console.warn(`[PraiseAudio] Error playing voice ${clip.id}:`, err);
     }
 
-    return nextClip.text;
+    // Play Layer 2/3: Light Sound Effects (Profile or Milestone)
+    let selectedProfile: SoundProfileType = 'voice_only';
+
+    if (streakCount >= 5) {
+      // 5 correct streak milestone
+      setTimeout(() => sound.playMilestone5Streak(), 100);
+      selectedProfile = 'applause';
+    } else if (streakCount === 3) {
+      // 3 correct streak milestone
+      setTimeout(() => sound.playMilestone3Streak(), 100);
+      selectedProfile = 'chime';
+    } else {
+      // Standard round: select profile from Shuffle Bag (history of last 2 prevented)
+      const profile = this.getNextProfile();
+      selectedProfile = profile.id;
+      setTimeout(() => {
+        profile.effect();
+      }, 90);
+    }
+
+    return {
+      text: clip.text,
+      profile: selectedProfile,
+    };
   }
 
-  // Voice pronounciation for Reading Preview "ساعدني 🔊" without AI request
+  // Backward compatible alias
+  public playPraise(streakCount: number = 0): string | null {
+    const result = this.playCelebrationSuccess(streakCount);
+    return result ? result.text : null;
+  }
+
+  // Local Voice pronunciation for Reading Preview "ساعدني 🔊"
   public speakWord(wordText: string) {
     if (typeof window === 'undefined') return;
     const isMuted = localStorage.getItem('naqra_sound_muted') === 'true';
@@ -161,9 +244,8 @@ class PraiseAudioManager {
       utterance.lang = 'ar-SA';
       utterance.rate = 0.85; // slightly slower for clear child articulation
 
-      // Look for Arabic voice
       const voices = window.speechSynthesis.getVoices();
-      const arVoice = voices.find(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'));
+      const arVoice = voices.find((v) => v.lang.startsWith('ar') || v.lang.includes('Arabic'));
       if (arVoice) {
         utterance.voice = arVoice;
       }

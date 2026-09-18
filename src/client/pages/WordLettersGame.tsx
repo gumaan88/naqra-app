@@ -8,13 +8,12 @@ import { sound } from '../lib/audio';
 import { praiseAudio } from '../lib/praiseAudio';
 import { fireCelebrationConfetti } from '../components/Confetti';
 import {
-  Word,
   WordLettersState,
   initWordLettersRound,
   processLetterCardTap,
   finalizeRoundResult,
 } from '@shared/game-engine';
-import { GameRoundResult, ClientSyncBatch } from '@shared/types';
+import { Word, GameRoundResult, ClientSyncBatch } from '@shared/types';
 import { Star, Sparkles, Home, Volume2, VolumeX } from 'lucide-react';
 import { ArabicWordDisplay } from '../components/ArabicWordDisplay';
 
@@ -36,6 +35,7 @@ export const WordLettersGame: React.FC = () => {
   const [previewDurationMs, setPreviewDurationMs] = useState<number>(0);
   const [previewHelpUsed, setPreviewHelpUsed] = useState<boolean>(false);
   const [challengeStartedAt, setChallengeStartedAt] = useState<number>(0);
+  const [streakCount, setStreakCount] = useState<number>(0);
 
   // Load words pack (Local-first from IndexedDB or API)
   useEffect(() => {
@@ -121,15 +121,20 @@ export const WordLettersGame: React.FC = () => {
     if (res.outcome === 'correct') {
       sound.playSuccess();
       setRoundState(res.state);
+    } else if (res.outcome === 'error') {
+      sound.playError();
+      setStreakCount(0);
+      setRoundState(res.state);
     } else if (res.outcome === 'completed') {
-      sound.playSuccess();
+      const nextStreak = res.state.wrongTaps === 0 ? streakCount + 1 : 0;
+      setStreakCount(nextStreak);
       setGamePhase('success');
       const challengeDuration = Math.max(100, Date.now() - challengeStartedAt);
 
-      // Play natural human Arabic praise from Shuffle Bag after 150ms
+      // Play natural human Arabic praise + layered profile from Shuffle Bag
       setTimeout(() => {
-        praiseAudio.playPraise();
-      }, 150);
+        praiseAudio.playCelebrationSuccess(nextStreak);
+      }, 120);
 
       fireCelebrationConfetti();
       setRoundState(res.state);

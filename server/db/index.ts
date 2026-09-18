@@ -27,6 +27,10 @@ export class DbHelper {
     return result || null;
   }
 
+  async queryFirst<T = any>(sql: string, ...params: any[]): Promise<T | null> {
+    return this.first<T>(sql, ...params);
+  }
+
   async run(sql: string, ...params: any[]): Promise<D1Response> {
     const stmt = this.db.prepare(sql).bind(...params);
     return await stmt.run();

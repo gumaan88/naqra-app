@@ -15,6 +15,7 @@ interface AuthContextType {
   loginParent: (token: string, user: User) => void;
   login: (token: string, user: User) => void;
   loginChild: (token: string, child: Child) => void;
+  setActiveChild: (child: Child | null) => void;
   logout: () => Promise<void>;
   toggleSound: () => void;
   refreshSession: () => Promise<void>;
@@ -119,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginParent,
         login: loginParent,
         loginChild,
+        setActiveChild,
         logout,
         toggleSound,
         refreshSession,

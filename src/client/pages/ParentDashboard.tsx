@@ -7,10 +7,11 @@ import {
   Users, UserPlus, Clock, Target, Award, Star,
   TrendingUp, AlertTriangle, CheckCircle, BookOpen,
   Trash2, Edit, X, Save, Plus, Cpu, ToggleLeft, ToggleRight,
-  Copy, Check, Search, ShieldCheck, FileText
+  Copy, Check, Search, ShieldCheck, FileText, Folder, Filter, Sparkles
 } from 'lucide-react';
 import { sound } from '../lib/audio';
 import { BulkWordImportModal } from '../components/BulkWordImportModal';
+import { CategoryManagementModal } from '../components/CategoryManagementModal';
 
 export const ParentDashboard: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
@@ -46,7 +47,9 @@ export const ParentDashboard: React.FC = () => {
   const [addingWord, setAddingWord] = useState<boolean>(false);
   const [wordError, setWordError] = useState<string | null>(null);
 
-  // AI Generation Modal
+  // Categories & Modals State
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState<boolean>(false);
   const [showAiModal, setShowAiModal] = useState<boolean>(false);
   const [showBulkModal, setShowBulkModal] = useState<boolean>(false);
   const [aiCount, setAiCount] = useState<number>(20);
@@ -55,10 +58,31 @@ export const ParentDashboard: React.FC = () => {
   const [generatingAi, setGeneratingAi] = useState<boolean>(false);
   const [aiResultMsg, setAiResultMsg] = useState<string | null>(null);
 
+  // Content Filtering State
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterLevel, setFilterLevel] = useState<string>('all');
+  const [filterSource, setFilterSource] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+
   useEffect(() => {
     loadChildren();
     loadParentWords();
+    loadCategories();
   }, []);
+
+  const loadCategories = async () => {
+    try {
+      const res = await api.categories.list();
+      if (res.ok && Array.isArray(res.categories)) {
+        setCategoriesList(res.categories);
+        if (res.categories.length > 0 && !newWordCategory) {
+          setNewWordCategory(res.categories[0].name);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const loadChildren = async () => {
     setLoading(true);
@@ -239,14 +263,21 @@ export const ParentDashboard: React.FC = () => {
         category: aiCategory,
       });
 
-      if (res.success) {
+      if ((res.ok || res.success) && (res.added > 0 || (res.words && res.words.length > 0))) {
         sound.playCelebration();
         setAiResultMsg(res.message);
+        if (res.words && Array.isArray(res.words)) {
+          setParentWords(prev => [...res.words, ...prev]);
+        }
         await loadParentWords();
+        await loadCategories();
         setTimeout(() => {
           setShowAiModal(false);
           setAiResultMsg(null);
         }, 1800);
+      } else {
+        sound.playError();
+        setAiResultMsg(res.message || 'لم تتم إضافة أي كلمات جديدة، قد تكون موجودة مسبقاً');
       }
     } catch (err: any) {
       sound.playError();
@@ -266,7 +297,46 @@ export const ParentDashboard: React.FC = () => {
   }
 
   const selectedChild = childrenList.find(c => c.id === selectedChildId);
-  const filteredWords = parentWords.filter(w => !wordSearch || w.text.includes(wordSearch) || w.category.includes(wordSearch));
+
+  // Multi-dimensional filtering logic: Search, Category, Level, Source, Status
+  const filteredWords = parentWords.filter((w) => {
+    // 1. Text search
+    if (wordSearch) {
+      const q = wordSearch.trim().toLowerCase();
+      const match =
+        (w.text && w.text.toLowerCase().includes(q)) ||
+        (w.normalized_text && w.normalized_text.toLowerCase().includes(q)) ||
+        (w.category && w.category.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+
+    // 2. Category filter
+    if (filterCategory !== 'all' && w.category !== filterCategory) {
+      return false;
+    }
+
+    // 3. Level filter
+    if (filterLevel !== 'all' && String(w.difficulty_level) !== filterLevel) {
+      return false;
+    }
+
+    // 4. Source filter
+    if (filterSource !== 'all') {
+      const src = w.source || 'curated';
+      if (filterSource === 'manual' && src !== 'manual') return false;
+      if (filterSource === 'bulk_import' && src !== 'bulk_import') return false;
+      if (filterSource === 'ai' && src !== 'ai') return false;
+      if (filterSource === 'curated' && src !== 'curated') return false;
+    }
+
+    // 5. Status filter
+    if (filterStatus !== 'all') {
+      if (filterStatus === 'enabled' && w.enabled !== 1) return false;
+      if (filterStatus === 'disabled' && w.enabled === 1) return false;
+    }
+
+    return true;
+  });
 
   return (
     <div className="min-h-[calc(100vh-68px)] max-w-6xl mx-auto px-4 py-8">
@@ -507,60 +577,200 @@ export const ParentDashboard: React.FC = () => {
       ) : (
         /* Parent Words Management Section */
         <div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          {/* Header & 4 Prominent Direct Action Buttons */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
             <div>
-              <h2 className="text-lg font-black text-brand-text">مكتبة الكلمات الخاصة بأطفالي</h2>
-              <p className="text-xs text-gray-500 font-medium">الكلمات التي تضيفها أو تولدها تظهر لأطفالك فقط دون غيرهم</p>
+              <h2 className="text-xl font-black text-brand-text flex items-center gap-2">
+                <span>مكتبة الكلمات الخاصة بأطفالي</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-100 text-brand-purple font-bold">
+                  {parentWords.length} كلمة
+                </span>
+              </h2>
+              <p className="text-xs text-gray-500 font-medium mt-1">
+                إدارة شاملة للمحتوى: إضافة كلمات، استيراد مجمّع، توليد ذكي، وتنظيم متقدم للفئات
+              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => {
-                  sound.playTap();
-                  setShowBulkModal(true);
-                }}
-                className="btn-child px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-xs font-black shadow-md flex items-center gap-1.5"
-              >
-                <FileText className="w-4 h-4" />
-                <span>إضافة كلمات دفعة واحدة</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  sound.playTap();
-                  setShowAiModal(true);
-                }}
-                className="btn-child px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black shadow-md flex items-center gap-1.5"
-              >
-                <Cpu className="w-4 h-4" />
-                <span>توليد بالذكاء الاصطناعي</span>
-              </button>
-
+            {/* 4 DIRECT ACTION BUTTONS */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
+              {/* 1. Add Single Word */}
               <button
                 onClick={() => {
                   sound.playTap();
                   setShowAddWordModal(true);
                 }}
-                className="btn-child px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-bold shadow-sm flex items-center gap-1.5"
+                className="btn-child px-3.5 py-2.5 bg-brand-turquoise hover:bg-teal-600 text-white text-xs font-black shadow-md flex items-center justify-center gap-1.5"
+                title="إضافة كلمة واحدة يدوياً"
               >
                 <Plus className="w-4 h-4" />
-                <span>إضافة كلمة يدوياً</span>
+                <span>إضافة كلمة</span>
+              </button>
+
+              {/* 2. Bulk Words Import */}
+              <button
+                onClick={() => {
+                  sound.playTap();
+                  setShowBulkModal(true);
+                }}
+                className="btn-child px-3.5 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white text-xs font-black shadow-md flex items-center justify-center gap-1.5"
+                title="استيراد كلمات دفعة واحدة بنص حر"
+              >
+                <FileText className="w-4 h-4" />
+                <span>إضافة كلمات دفعة واحدة</span>
+              </button>
+
+              {/* 3. AI Generate */}
+              <button
+                onClick={() => {
+                  sound.playTap();
+                  setShowAiModal(true);
+                }}
+                className="btn-child px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-md flex items-center justify-center gap-1.5"
+                title="توليد بالذكاء الاصطناعي مع الحفظ التلقائي"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>توليد بالذكاء الاصطناعي</span>
+              </button>
+
+              {/* 4. Category Management */}
+              <button
+                onClick={() => {
+                  sound.playTap();
+                  setShowCategoryModal(true);
+                }}
+                className="btn-child px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black shadow-sm flex items-center justify-center gap-1.5"
+                title="إنشاء وتعديل وحذف الفئات بأمان"
+              >
+                <Folder className="w-4 h-4 text-indigo-600" />
+                <span>إدارة الفئات</span>
               </button>
             </div>
           </div>
 
-          {/* Search bar */}
-          <div className="relative mb-6">
-            <input
-              type="text"
-              placeholder="ابحث في كلماتك..."
-              value={wordSearch}
-              onChange={(e) => setWordSearch(e.target.value)}
-              className="w-full h-11 px-4 pr-10 rounded-2xl border border-gray-300 text-sm font-bold outline-none focus:border-brand-purple"
-            />
-            <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
+          {/* 5-Way Filter Bar (Category, Level, Source, Status, Search) */}
+          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm mb-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-black text-gray-700">
+                <Filter className="w-4 h-4 text-brand-purple" />
+                <span>تصفية وتحديد الكلمات:</span>
+              </div>
+              {(filterCategory !== 'all' || filterLevel !== 'all' || filterSource !== 'all' || filterStatus !== 'all' || wordSearch) && (
+                <button
+                  onClick={() => {
+                    setFilterCategory('all');
+                    setFilterLevel('all');
+                    setFilterSource('all');
+                    setFilterStatus('all');
+                    setWordSearch('');
+                  }}
+                  className="text-[11px] font-bold text-brand-purple hover:underline"
+                >
+                  إعادة ضبط الفلاتر
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
+              {/* Category Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 mb-1">الفئة:</label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-xl border border-gray-300 text-xs font-bold outline-none bg-white focus:border-brand-purple"
+                >
+                  <option value="all">جميع الفئات ({parentWords.length})</option>
+                  {categoriesList.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.icon || '🏷️'} {cat.name} ({cat.word_count || 0})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Level Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 mb-1">المستوى:</label>
+                <select
+                  value={filterLevel}
+                  onChange={(e) => setFilterLevel(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-xl border border-gray-300 text-xs font-bold outline-none bg-white focus:border-brand-purple"
+                >
+                  <option value="all">جميع المستويات</option>
+                  <option value="1">المستوى 1 (بسيط)</option>
+                  <option value="2">المستوى 2</option>
+                  <option value="3">المستوى 3</option>
+                  <option value="4">المستوى 4</option>
+                  <option value="5">المستوى 5 (متقدم)</option>
+                </select>
+              </div>
+
+              {/* Source Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 mb-1">المصدر:</label>
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-xl border border-gray-300 text-xs font-bold outline-none bg-white focus:border-brand-purple"
+                >
+                  <option value="all">جميع المصادر</option>
+                  <option value="manual">يدوي (ولي الأمر)</option>
+                  <option value="bulk_import">استيراد دفعة واحدة</option>
+                  <option value="ai">ذكاء اصطناعي</option>
+                  <option value="curated">فهرس النظام</option>
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 mb-1">الحالة:</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-xl border border-gray-300 text-xs font-bold outline-none bg-white focus:border-brand-purple"
+                >
+                  <option value="all">جميع الحالات</option>
+                  <option value="enabled">نشطة ومفعلة ✓</option>
+                  <option value="disabled">معطلة مؤقتاً ✕</option>
+                </select>
+              </div>
+
+              {/* Search input */}
+              <div className="col-span-2 sm:col-span-4 lg:col-span-1">
+                <label className="block text-[10px] font-bold text-gray-500 mb-1">بحث سريع:</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="ابحث بالكلمة..."
+                    value={wordSearch}
+                    onChange={(e) => setWordSearch(e.target.value)}
+                    className="w-full h-9 px-3 pr-8 rounded-xl border border-gray-300 text-xs font-bold outline-none focus:border-brand-purple"
+                  />
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-3" />
+                  {wordSearch && (
+                    <button
+                      onClick={() => setWordSearch('')}
+                      className="w-4 h-4 text-gray-400 hover:text-gray-600 absolute left-2.5 top-2.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Results count indicator */}
+            <div className="text-[11px] text-gray-400 font-bold pt-1 flex items-center justify-between">
+              <span>عرض {filteredWords.length} من أصل {parentWords.length} كلمة</span>
+              {filteredWords.length !== parentWords.length && (
+                <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  فلاتر نشطة
+                </span>
+              )}
+            </div>
           </div>
 
+          {/* Words Grid */}
           {loadingWords ? (
             <div className="text-center py-12">
               <div className="w-10 h-10 border-4 border-brand-purple border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -569,52 +779,85 @@ export const ParentDashboard: React.FC = () => {
           ) : filteredWords.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 text-center border-2 border-dashed border-gray-300 max-w-md mx-auto">
               <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-bold text-gray-600 mb-3">لا توجد كلمات مطابقة</p>
-              <button
-                onClick={() => setShowAiModal(true)}
-                className="btn-child px-5 py-2.5 bg-brand-purple text-white text-xs font-bold mx-auto"
-              >
-                توليد كلمات لأطفالك
-              </button>
+              <p className="text-sm font-bold text-gray-600 mb-3">لا توجد كلمات مطابقة للفلاتر المحددة</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <button
+                  onClick={() => setShowBulkModal(true)}
+                  className="btn-child px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-xs font-bold"
+                >
+                  استيراد كلمات دفعة واحدة
+                </button>
+                <button
+                  onClick={() => setShowAiModal(true)}
+                  className="btn-child px-4 py-2 bg-brand-purple text-white text-xs font-bold"
+                >
+                  توليد كلمات بالذكاء الاصطناعي
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5">
-              {filteredWords.map((word) => (
-                <div
-                  key={word.id}
-                  className={`p-3.5 rounded-2xl border-2 transition-all bg-white shadow-sm flex items-center justify-between gap-2 ${
-                    word.enabled === 1 ? 'border-gray-200' : 'border-gray-200 opacity-50 bg-gray-50'
-                  }`}
-                >
-                  <div>
-                    <div className="text-xl font-black text-brand-text">{word.text}</div>
-                    <div className="text-[10px] font-bold text-gray-400 flex items-center gap-1.5 mt-0.5">
-                      <span>مستوى {word.difficulty_level}</span>
-                      <span>•</span>
-                      <span>{word.category}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+              {filteredWords.map((word) => {
+                const src = word.source || 'curated';
+                const isManual = src === 'manual';
+                const isBulk = src === 'bulk_import';
+                const isAi = src === 'ai';
+
+                return (
+                  <div
+                    key={word.id}
+                    className={`p-3.5 rounded-2xl border-2 transition-all bg-white shadow-sm flex items-center justify-between gap-2.5 ${
+                      word.enabled === 1 ? 'border-gray-200 hover:border-gray-300' : 'border-gray-200 opacity-50 bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xl font-black text-brand-text truncate">{word.text}</div>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-brand-purple text-[10px] font-black border border-purple-200">
+                          {word.category}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">
+                          مستوى {word.difficulty_level}
+                        </span>
+                        {isBulk && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-bold">
+                            استيراد
+                          </span>
+                        )}
+                        {isAi && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                            AI ✨
+                          </span>
+                        )}
+                        {isManual && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 text-[10px] font-bold">
+                            يدوي
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleToggleWord(word.id)}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
+                          word.enabled === 1 ? 'text-brand-success hover:bg-emerald-50' : 'text-gray-400 hover:bg-gray-200'
+                        }`}
+                        title={word.enabled === 1 ? 'مفعلة (اضغط للتعطيل)' : 'معطلة (اضغط للتفعيل)'}
+                      >
+                        {word.enabled === 1 ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteWord(word.id)}
+                        className="w-8 h-8 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors"
+                        title="إزالة من مجموعتي"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleToggleWord(word.id)}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                        word.enabled === 1 ? 'text-brand-success hover:bg-emerald-50' : 'text-gray-400 hover:bg-gray-200'
-                      }`}
-                      title={word.enabled === 1 ? 'مفعلة (اضغط للتعطيل)' : 'معطلة (اضغط للتفعيل)'}
-                    >
-                      {word.enabled === 1 ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteWord(word.id)}
-                      className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center"
-                      title="إزالة من مجموعتي"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -719,7 +962,7 @@ export const ParentDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Add Word Modal */}
+      {/* Add Word Modal with Dynamic Categories */}
       {showAddWordModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-brand-turquoise">
@@ -766,12 +1009,23 @@ export const ParentDashboard: React.FC = () => {
                     onChange={(e) => setNewWordCategory(e.target.value)}
                     className="w-full h-11 px-3 rounded-xl border border-gray-300 text-sm font-bold outline-none bg-white"
                   >
-                    <option value="حيوانات">حيوانات</option>
-                    <option value="فواكه">فواكه</option>
-                    <option value="طبيعة">طبيعة</option>
-                    <option value="أدوات">أدوات</option>
-                    <option value="أشياء">أشياء</option>
-                    <option value="عائلة">عائلة</option>
+                    {categoriesList.length > 0 ? (
+                      categoriesList.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.icon} {c.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="حيوانات">حيوانات</option>
+                        <option value="عائلة">عائلة</option>
+                        <option value="منزل">منزل</option>
+                        <option value="مدرسة">مدرسة</option>
+                        <option value="طعام">طعام</option>
+                        <option value="طبيعة">طبيعة</option>
+                        <option value="كلمات عامة">كلمات عامة</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -797,7 +1051,7 @@ export const ParentDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* AI Generate Words Modal */}
+      {/* AI Generate Words Modal with Dynamic Categories */}
       {showAiModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-emerald-600">
@@ -805,7 +1059,7 @@ export const ParentDashboard: React.FC = () => {
               توليد كلمات بالذكاء الاصطناعي
             </h3>
             <p className="text-xs text-gray-500 mb-4">
-              حدد العدد المطلوب وسيتم توليد كلمات صالحة وغير مكررة وإضافتها فوراً لأطفالك.
+              حدد العدد والفئة وسيتم توليد كلمات صالحة وغير مكررة وإضافتها فوراً لمجموعتك.
             </p>
 
             {aiResultMsg && (
@@ -850,12 +1104,23 @@ export const ParentDashboard: React.FC = () => {
                     onChange={(e) => setAiCategory(e.target.value)}
                     className="w-full h-11 px-3 rounded-xl border border-gray-300 text-sm font-bold outline-none bg-white"
                   >
-                    <option value="حيوانات">حيوانات</option>
-                    <option value="فواكه">فواكه</option>
-                    <option value="طبيعة">طبيعة</option>
-                    <option value="أدوات">أدوات</option>
-                    <option value="أشياء">أشياء</option>
-                    <option value="عائلة">عائلة</option>
+                    {categoriesList.length > 0 ? (
+                      categoriesList.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.icon} {c.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="حيوانات">حيوانات</option>
+                        <option value="عائلة">عائلة</option>
+                        <option value="منزل">منزل</option>
+                        <option value="مدرسة">مدرسة</option>
+                        <option value="طعام">طعام</option>
+                        <option value="طبيعة">طبيعة</option>
+                        <option value="كلمات عامة">كلمات عامة</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -864,9 +1129,19 @@ export const ParentDashboard: React.FC = () => {
                 <button
                   type="submit"
                   disabled={generatingAi}
-                  className="btn-child flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-xs font-bold shadow-md disabled:opacity-50"
+                  className="btn-child flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-xs font-bold shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {generatingAi ? 'جاري التوليد على دفعات...' : `توليد ${aiCount} كلمة`}
+                  {generatingAi ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>جاري التوليد على دفعات...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>توليد {aiCount} كلمة</span>
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -885,9 +1160,27 @@ export const ParentDashboard: React.FC = () => {
       <BulkWordImportModal
         isOpen={showBulkModal}
         onClose={() => setShowBulkModal(false)}
-        onSuccess={loadParentWords}
+        onSuccess={async (addedWords) => {
+          if (addedWords && Array.isArray(addedWords) && addedWords.length > 0) {
+            setParentWords(prev => [...addedWords, ...prev]);
+          }
+          await loadParentWords();
+          await loadCategories();
+        }}
         existingParentWords={parentWords}
+        availableCategories={categoriesList.map(c => c.name)}
+      />
+
+      {/* Category Management Modal */}
+      <CategoryManagementModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        onCategoriesChanged={async () => {
+          await loadCategories();
+          await loadParentWords();
+        }}
       />
     </div>
   );
 };
+

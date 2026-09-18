@@ -29,18 +29,48 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(endpoint, {
-    credentials: 'include',
-    ...options,
-    headers,
-  });
-
-  const data = await res.json();
-  if (!res.ok || data.success === false) {
-    throw new Error(data.error || 'حدث خطأ في الاتصال بالخادم');
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      credentials: 'include',
+      ...options,
+      headers,
+    });
+  } catch (netErr: any) {
+    throw new Error('تعذر الاتصال بالخادم، يرجى التأكد من اتصال الإنترنت');
   }
 
-  return data;
+  // Safe content parsing - NEVER throw Unexpected token 'I'
+  const contentType = res.headers.get('content-type') || '';
+  let data: any = null;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      console.warn('[API] Failed to parse JSON response from', endpoint);
+    }
+  } else {
+    const rawText = await res.text().catch(() => '');
+    if (!res.ok) {
+      throw new Error(`خطأ في الخادم (${res.status}): يرجى المحاولة مرة أخرى`);
+    }
+    data = { ok: true, raw: rawText };
+  }
+
+  if (!res.ok || (data && (data.ok === false || data.success === false))) {
+    const errorMsg =
+      (typeof data?.error === 'object' ? data?.error?.message : data?.error) ||
+      data?.message ||
+      (res.status === 401 ? 'يرجى تسجيل الدخول مجدداً' :
+       res.status === 403 ? 'ليس لديك صلاحية لتنفيذ هذا الإجراء' :
+       res.status === 404 ? 'المورد المطلوب غير موجود' :
+       res.status >= 500 ? 'حدث خطأ غير متوقع في الخادم، يرجى المحاولة لاحقاً' :
+       'حدث خطأ غير متوقع أثناء معالجة الطلب');
+    throw new Error(errorMsg);
+  }
+
+  return data as T;
 }
 
 export const api = {
@@ -83,23 +113,57 @@ export const api = {
         method: 'DELETE',
       }),
     generate: (params: { count: number; level: number; category: string }) =>
-      request<{ success: boolean; requestedCount: number; generatedCount: number; words: any[]; message: string }>('/api/words/generate', {
+      request<{
+        ok?: boolean;
+        success: boolean;
+        requested?: number;
+        generated?: number;
+        valid?: number;
+        duplicates?: number;
+        added: number;
+        words: any[];
+        message: string;
+      }>('/api/words/generate', {
         method: 'POST',
         body: JSON.stringify(params),
       }),
     bulkImport: (data: { category: string; difficultyLevel: number; rawWords: string }) =>
       request<{
+        ok?: boolean;
         success: boolean;
-        totalFound: number;
-        addedCount: number;
-        existingCount: number;
-        invalidCount: number;
+        totalFound?: number;
+        received?: number;
+        addedCount?: number;
+        inserted?: number;
+        existingCount?: number;
+        alreadyOwned?: number;
+        invalidCount?: number;
+        invalid?: number;
         details: { text: string; status: 'added' | 'existing' | 'invalid'; reason?: string }[];
         words: any[];
         message: string;
       }>('/api/words/bulk-import', {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+  },
+
+  categories: {
+    list: () => request<{ ok: boolean; success: boolean; categories: any[] }>('/api/words/categories'),
+    create: (data: { name: string; icon?: string }) =>
+      request<{ ok: boolean; success: boolean; category: any; message: string }>('/api/words/categories', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: { name?: string; icon?: string; is_active?: number }) =>
+      request<{ ok: boolean; success: boolean; message: string }>(`/api/words/categories/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string, data?: { action: 'reassign' | 'unlink'; targetCategory?: string }) =>
+      request<{ ok: boolean; success: boolean; message: string; affectedWords?: number }>(`/api/words/categories/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify(data || { action: 'unlink' }),
       }),
   },
 

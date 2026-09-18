@@ -30,6 +30,7 @@ export const WordImageGame: React.FC = () => {
   const [firstTapAt, setFirstTapAt] = useState<number | null>(null);
   const [correctTaps, setCorrectTaps] = useState<number>(0);
   const [wrongTaps, setWrongTaps] = useState<number>(0);
+  const [streakCount, setStreakCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -63,17 +64,17 @@ export const WordImageGame: React.FC = () => {
         {
           word: { id: 'w_08', text: 'أسد', normalized_text: 'أسد', category: 'حيوانات', difficulty_level: 1, is_imageable: true, image_url: '/assets/images/words/lion.svg', status: 'approved', created_at: '' },
           options: [
-            { id: 'opt_1', wordId: 'w_08', wordText: 'أسد', imageUrl: '/assets/images/words/lion.svg', isCorrect: true, status: 'idle' },
-            { id: 'opt_2', wordId: 'w_09', wordText: 'قط', imageUrl: '/assets/images/words/cat.svg', isCorrect: false, status: 'idle' },
-            { id: 'opt_3', wordId: 'w_10', wordText: 'بط', imageUrl: '/assets/images/words/duck.svg', isCorrect: false, status: 'idle' },
+            { id: 'opt_1', wordId: 'w_08', wordText: 'أسد', imageUrl: '/assets/images/words/lion.svg', isCorrect: true, status: 'idle' as const },
+            { id: 'opt_2', wordId: 'w_09', wordText: 'قط', imageUrl: '/assets/images/words/cat.svg', isCorrect: false, status: 'idle' as const },
+            { id: 'opt_3', wordId: 'w_10', wordText: 'بط', imageUrl: '/assets/images/words/duck.svg', isCorrect: false, status: 'idle' as const },
           ].sort(() => Math.random() - 0.5),
         },
         {
           word: { id: 'w_04', text: 'باب', normalized_text: 'باب', category: 'المنزل', difficulty_level: 1, is_imageable: true, image_url: '/assets/images/words/door.svg', status: 'approved', created_at: '' },
           options: [
-            { id: 'opt_4', wordId: 'w_04', wordText: 'باب', imageUrl: '/assets/images/words/door.svg', isCorrect: true, status: 'idle' },
-            { id: 'opt_5', wordId: 'w_05', wordText: 'دب', imageUrl: '/assets/images/words/bear.svg', isCorrect: false, status: 'idle' },
-            { id: 'opt_6', wordId: 'w_07', wordText: 'يد', imageUrl: '/assets/images/words/hand.svg', isCorrect: false, status: 'idle' },
+            { id: 'opt_4', wordId: 'w_04', wordText: 'باب', imageUrl: '/assets/images/words/door.svg', isCorrect: true, status: 'idle' as const },
+            { id: 'opt_5', wordId: 'w_05', wordText: 'دب', imageUrl: '/assets/images/words/bear.svg', isCorrect: false, status: 'idle' as const },
+            { id: 'opt_6', wordId: 'w_07', wordText: 'يد', imageUrl: '/assets/images/words/hand.svg', isCorrect: false, status: 'idle' as const },
           ].sort(() => Math.random() - 0.5),
         }
       ];
@@ -118,10 +119,13 @@ export const WordImageGame: React.FC = () => {
       const updatedRounds = [...completedRounds, roundResult];
       setCompletedRounds(updatedRounds);
 
+      const nextStreak = wrongTaps === 0 ? streakCount + 1 : 0;
+      setStreakCount(nextStreak);
+
       if (currentIdx + 1 < questions.length) {
         setTimeout(() => {
-          praiseAudio.playPraise();
-        }, 150);
+          praiseAudio.playCelebrationSuccess(nextStreak);
+        }, 120);
         setTimeout(() => {
           setCurrentIdx(prev => prev + 1);
           setErrorCount(0);
@@ -135,9 +139,8 @@ export const WordImageGame: React.FC = () => {
       } else {
         // Finished group
         setTimeout(() => {
-          praiseAudio.playPraise();
-        }, 150);
-        sound.playCelebration();
+          praiseAudio.playCelebrationSuccess(nextStreak);
+        }, 120);
         fireCelebrationConfetti();
         setTimeout(() => {
           finishSession(updatedRounds);
@@ -145,6 +148,7 @@ export const WordImageGame: React.FC = () => {
       }
     } else {
       sound.playError();
+      setStreakCount(0);
       const nextErrors = errorCount + 1;
       setErrorCount(nextErrors);
       setWrongTaps(prev => prev + 1);

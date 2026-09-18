@@ -29,9 +29,39 @@ app.route('/api/game-events', syncRoutes);
 app.route('/api/analytics', analyticsRoutes);
 app.route('/api/admin', adminRoutes);
 
+// Global Error Handler - NEVER return raw text 500
+app.onError((err, c) => {
+  const reqId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  console.error(`[API-ERROR ${reqId}] ${c.req.method} ${c.req.url}:`, err);
+  
+  return c.json({
+    ok: false,
+    success: false,
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'حدث خطأ غير متوقع في الخادم، يرجى المحاولة لاحقاً',
+      details: err?.message || String(err),
+      requestId: reqId
+    }
+  }, 500);
+});
+
+// Global 404 Handler
+app.notFound((c) => {
+  return c.json({
+    ok: false,
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: 'المسار المطلوب غير موجود'
+    }
+  }, 404);
+});
+
 // Health check
 app.get('/api/health', (c) => {
   return c.json({
+    ok: true,
     status: 'ok',
     app: 'نقرأ - Naqra Platform',
     version: '1.0.0',

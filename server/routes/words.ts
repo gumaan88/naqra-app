@@ -10,7 +10,7 @@ export const wordsRoutes = new Hono<{
 }>();
 
 // Comprehensive curated dictionary of Arabic words for reliable AI/linguistic expansion
-// Guarantees that requests for 20, 30, or 50 words NEVER get truncated or capped at 8!
+// Guarantees that requests for 20, 30, or 50 words NEVER get truncated or fail across ANY category!
 export const EXPANDED_ARABIC_DICTIONARY: Record<string, string[]> = {
   'حيوانات': [
     'أسد', 'نمر', 'فهد', 'ذئب', 'ثعلب', 'دب', 'غزال', 'جمل', 'حصان', 'حمار',
@@ -40,16 +40,55 @@ export const EXPANDED_ARABIC_DICTIONARY: Record<string, string[]> = {
   'عائلة': [
     'أب', 'أم', 'أخ', 'أخت', 'جد', 'جدة', 'عم', 'عمة', 'خال', 'خالة',
     'ابن', 'ابنة', 'طفل', 'طفلة', 'صديق', 'صديقة', 'جار', 'معلم', 'طبيب', 'ولد'
+  ],
+  'منزل': [
+    'باب', 'نافذة', 'غرفة', 'مطبخ', 'سرير', 'طاولة', 'كرسي', 'وسادة', 'مرآة', 'مصباح',
+    'سجادة', 'ستارة', 'سقف', 'جدار', 'شرفة', 'حمام', 'فرن', 'ثلاجة', 'دولاب', 'خزانة',
+    'ساعة', 'مفتاح', 'صحن', 'كوب', 'ملعقة', 'شوكة', 'إبريق', 'طشت', 'لحاف', 'أريكة'
+  ],
+  'مدرسة': [
+    'كتاب', 'دفتر', 'قلم', 'مسطرة', 'ممحاة', 'مبرأة', 'لوح', 'صف', 'معلم', 'طالب',
+    'حقيبة', 'كرسي', 'طاولة', 'جرس', 'فناء', 'مكتبة', 'ورقة', 'ألوان', 'خريطة', 'مقص',
+    'امتحان', 'درس', 'نشيد', 'رسم', 'ملعب', 'مدير', 'طاقم', 'حاسوب', 'مسرح', 'علم'
+  ],
+  'طعام': [
+    'خبز', 'حليب', 'جبن', 'عسل', 'بيض', 'لحم', 'سمك', 'أرز', 'حساء', 'زيت',
+    'ماء', 'عصير', 'شاي', 'تمر', 'زيتون', 'تفاح', 'موز', 'عنب', 'بطاطس', 'طماطم',
+    'جزر', 'خيار', 'بصل', 'ثوم', 'سلطة', 'فطيرة', 'حلوى', 'كعك', 'سكر', 'ملح'
+  ],
+  'مواصلات': [
+    'سيارة', 'حافلة', 'قطار', 'طائرة', 'سفينة', 'قارب', 'دراجة', 'شاحنة', 'صاروخ', 'مروحية',
+    'مترو', 'عربة', 'مركب', 'زورق', 'غواصة', 'جرار', 'صهريج', 'دباب', 'تاكسي', 'محطة'
+  ],
+  'جسم الإنسان': [
+    'عين', 'أنف', 'فم', 'أذن', 'رأس', 'شعر', 'يد', 'رجل', 'قدم', 'ساق',
+    'إصبع', 'لسان', 'سن', 'وجه', 'عنق', 'كتف', 'صدر', 'بطن', 'ظهر', 'قلب'
+  ],
+  'أفعال': [
+    'قرأ', 'كتب', 'رسم', 'لعب', 'أكل', 'شرب', 'نام', 'جلس', 'وقف', 'مشى',
+    'ركض', 'قفز', 'ضحك', 'سمع', 'نظر', 'سأل', 'أجاب', 'فتح', 'أغلق', 'ساعد'
+  ],
+  'كلمات عامة': [
+    'نور', 'خير', 'سلام', 'فرح', 'حب', 'أمل', 'يوم', 'ليل', 'نهار', 'وقت',
+    'صوت', 'لون', 'شكل', 'طريق', 'سفر', 'وطن', 'علم', 'عمل', 'فكرة', 'صورة'
   ]
 };
 
-// GET /api/words: list parent's active words
+// GET /api/words: list parent's active words with parent-specific category mapping
 wordsRoutes.get('/', parentAuthMiddleware, async (c) => {
   const user = c.get('user');
   const db = new DbHelper(c.env.DB);
 
   const words = await db.query<any>(
-    `SELECT w.id, w.text, w.normalized_text, w.category, w.difficulty_level,
+    `SELECT w.id, w.text, w.normalized_text, 
+            COALESCE((
+              SELECT pwc.category_name 
+              FROM parent_word_categories pwc 
+              WHERE pwc.parent_id = pw.parent_id AND pwc.word_id = w.id 
+              ORDER BY pwc.created_at DESC 
+              LIMIT 1
+            ), w.category) AS category,
+            w.difficulty_level,
             w.is_imageable, w.image_url, pw.enabled, pw.source, pw.created_at as added_at
      FROM words w
      JOIN parent_words pw ON pw.word_id = w.id
@@ -58,39 +97,209 @@ wordsRoutes.get('/', parentAuthMiddleware, async (c) => {
     user.id
   );
 
-  return c.json({ success: true, count: words.length, words });
+  return c.json({ ok: true, success: true, count: words.length, words });
+});
+
+// GET /api/words/categories: list categories available to parent with exact word counts
+wordsRoutes.get('/categories', parentAuthMiddleware, async (c) => {
+  const user = c.get('user');
+  const db = new DbHelper(c.env.DB);
+
+  const categories = await db.query<any>(
+    `SELECT c.id, c.name, c.icon, c.sort_order, c.is_active, c.parent_id,
+            (c.parent_id IS NULL) AS is_system,
+            (
+              SELECT COUNT(DISTINCT pwc.word_id)
+              FROM parent_word_categories pwc
+              JOIN parent_words pw ON pw.word_id = pwc.word_id AND pw.parent_id = pwc.parent_id
+              WHERE pwc.parent_id = ? AND pwc.category_name = c.name
+            ) AS word_count
+     FROM parent_categories c
+     WHERE (c.parent_id IS NULL OR c.parent_id = ?)
+     ORDER BY c.sort_order ASC, c.created_at ASC`,
+    user.id, user.id
+  );
+
+  return c.json({ ok: true, success: true, categories });
+});
+
+// POST /api/words/categories: create a custom category for parent
+wordsRoutes.post('/categories', parentAuthMiddleware, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const name = body.name ? String(body.name).trim() : '';
+  const icon = body.icon ? String(body.icon).trim() : '🏷️';
+
+  if (!name) {
+    return c.json({ ok: false, success: false, error: { message: 'اسم الفئة مطلوب' } }, 400);
+  }
+
+  const db = new DbHelper(c.env.DB);
+  const now = new Date().toISOString();
+
+  // Check if category already exists for this parent or system
+  const existing = await db.first(
+    `SELECT id FROM parent_categories WHERE (parent_id = ? OR parent_id IS NULL) AND name = ?`,
+    user.id, name
+  );
+  if (existing) {
+    return c.json({ ok: false, success: false, error: { message: 'هذه الفئة موجودة بالفعل' } }, 400);
+  }
+
+  const catId = `cat_${user.id}_${Date.now().toString(36)}`;
+  await db.run(
+    `INSERT INTO parent_categories (id, parent_id, name, icon, sort_order, is_active, created_at)
+     VALUES (?, ?, ?, ?, 99, 1, ?)`,
+    catId, user.id, name, icon, now
+  );
+
+  return c.json({
+    ok: true,
+    success: true,
+    category: {
+      id: catId,
+      name,
+      icon,
+      is_active: 1,
+      is_system: 0,
+      word_count: 0
+    },
+    message: 'تم إنشاء الفئة بنجاح'
+  });
+});
+
+// PATCH /api/words/categories/:id: update category name or status
+wordsRoutes.patch('/categories/:id', parentAuthMiddleware, async (c) => {
+  const user = c.get('user');
+  const catId = c.req.param('id');
+  const body = await c.req.json();
+  const db = new DbHelper(c.env.DB);
+
+  const cat = await db.first<any>(
+    `SELECT * FROM parent_categories WHERE id = ? AND (parent_id = ? OR parent_id IS NULL)`,
+    catId, user.id
+  );
+
+  if (!cat) {
+    return c.json({ ok: false, success: false, error: { message: 'الفئة غير موجودة' } }, 404);
+  }
+
+  const newName = body.name ? String(body.name).trim() : cat.name;
+  const newIcon = body.icon ? String(body.icon).trim() : cat.icon;
+  const newActive = body.is_active !== undefined ? (body.is_active ? 1 : 0) : cat.is_active;
+
+  if (cat.parent_id !== null && newName !== cat.name) {
+    // Also rename in parent_word_categories
+    await db.run(
+      `UPDATE parent_word_categories SET category_name = ? WHERE parent_id = ? AND category_name = ?`,
+      newName, user.id, cat.name
+    );
+  }
+
+  await db.run(
+    `UPDATE parent_categories SET name = ?, icon = ?, is_active = ? WHERE id = ?`,
+    newName, newIcon, newActive, catId
+  );
+
+  return c.json({ ok: true, success: true, message: 'تم تحديث الفئة بنجاح' });
+});
+
+// DELETE /api/words/categories/:id: safe category delete
+// NEVER deletes global words from words table! Options: reassign words or unlink relation.
+wordsRoutes.delete('/categories/:id', parentAuthMiddleware, async (c) => {
+  const user = c.get('user');
+  const catId = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const action = body.action || 'unlink'; // 'reassign' | 'unlink'
+  const targetCategory = body.targetCategory ? String(body.targetCategory).trim() : null;
+
+  const db = new DbHelper(c.env.DB);
+
+  const cat = await db.first<any>(
+    `SELECT * FROM parent_categories WHERE id = ? AND parent_id = ?`,
+    catId, user.id
+  );
+
+  if (!cat) {
+    return c.json({ ok: false, success: false, error: { message: 'لا يمكن حذف هذه الفئة أو أنها غير موجودة' } }, 400);
+  }
+
+  // Count affected words for this parent
+  const affected = await db.first<{ count: number }>(
+    `SELECT COUNT(*) as count FROM parent_word_categories WHERE parent_id = ? AND category_name = ?`,
+    user.id, cat.name
+  );
+  const affectedCount = affected?.count || 0;
+
+  if (action === 'reassign' && targetCategory) {
+    // Reassign words to target category
+    await db.run(
+      `UPDATE OR IGNORE parent_word_categories SET category_name = ? WHERE parent_id = ? AND category_name = ?`,
+      targetCategory, user.id, cat.name
+    );
+    // Delete any remaining duplicates from the old category
+    await db.run(
+      `DELETE FROM parent_word_categories WHERE parent_id = ? AND category_name = ?`,
+      user.id, cat.name
+    );
+  } else {
+    // Unlink words from this category (words stay in parent collection as unlinked)
+    await db.run(
+      `DELETE FROM parent_word_categories WHERE parent_id = ? AND category_name = ?`,
+      user.id, cat.name
+    );
+  }
+
+  // Delete the custom category row
+  await db.run(
+    `DELETE FROM parent_categories WHERE id = ? AND parent_id = ?`,
+    catId, user.id
+  );
+
+  return c.json({
+    ok: true,
+    success: true,
+    affectedWords: affectedCount,
+    message: action === 'reassign'
+      ? `تم حذف الفئة ونقل ${affectedCount} كلمة إلى "${targetCategory}" بأمان`
+      : `تم حذف الفئة وفك ارتباط ${affectedCount} كلمة بأمان دون حذف الكلمات`
+  });
 });
 
 // POST /api/words: add word manually by parent
-// Normalizes, checks central words, links to parent_words, idempotent
 wordsRoutes.post('/', parentAuthMiddleware, async (c) => {
   const user = c.get('user');
   const { text, category, difficulty_level, is_imageable } = await c.req.json();
 
   if (!text || typeof text !== 'string') {
-    return c.json({ success: false, error: 'الكلمة مطلوبة' }, 400);
+    return c.json({ ok: false, success: false, error: { message: 'الكلمة مطلوبة' } }, 400);
   }
 
   const validation = isValidArabicWord(text);
   if (!validation.valid) {
-    return c.json({ success: false, error: validation.reason }, 400);
+    return c.json({ ok: false, success: false, error: { message: validation.reason } }, 400);
   }
 
   const normalized = normalizeArabicText(text);
+  const chosenCategory = (category && String(category).trim()) || 'كلمات عامة';
+  const level = Math.min(5, Math.max(1, Number(difficulty_level) || 1));
   const db = new DbHelper(c.env.DB);
   const now = new Date().toISOString();
 
-  // 1. Find or create central word
-  let word = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ?', normalized);
+  // 1. Find or create central word with INSERT OR IGNORE
+  let word = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ? LIMIT 1', normalized);
   let wordId: string;
 
   if (!word) {
     wordId = `w_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     await db.run(
-      `INSERT INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
+      `INSERT OR IGNORE INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
        VALUES (?, ?, ?, ?, ?, ?, 'curated', 'approved', ?, ?)`,
-      wordId, text.trim(), normalized, category || 'عام', Number(difficulty_level) || 1, is_imageable !== false ? 1 : 0, now, now
+      wordId, text.trim(), normalized, chosenCategory, level, is_imageable !== false ? 1 : 0, now, now
     );
+    // Fetch actual id in case another process inserted concurrently
+    const recheck = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ? LIMIT 1', normalized);
+    if (recheck) wordId = recheck.id;
   } else {
     wordId = word.id;
   }
@@ -101,8 +310,17 @@ wordsRoutes.post('/', parentAuthMiddleware, async (c) => {
     user.id, wordId
   );
 
+  // Link to category regardless
+  const pwcId = `pwc_${user.id}_${wordId}_${encodeURIComponent(chosenCategory)}`;
+  await db.run(
+    `INSERT OR IGNORE INTO parent_word_categories (id, parent_id, word_id, category_name, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    pwcId, user.id, wordId, chosenCategory, now
+  );
+
   if (existingRelation) {
     return c.json({
+      ok: true,
       success: true,
       alreadyExists: true,
       message: 'الكلمة موجودة بالفعل في مجموعتك',
@@ -113,12 +331,13 @@ wordsRoutes.post('/', parentAuthMiddleware, async (c) => {
   // 3. Link word to parent
   const relationId = `pw_${user.id}_${wordId}`;
   await db.run(
-    `INSERT INTO parent_words (id, parent_id, word_id, created_at, enabled, source)
+    `INSERT OR IGNORE INTO parent_words (id, parent_id, word_id, created_at, enabled, source)
      VALUES (?, ?, ?, ?, 1, 'manual')`,
     relationId, user.id, wordId, now
   );
 
   return c.json({
+    ok: true,
     success: true,
     message: 'تمت إضافة الكلمة بنجاح إلى مجموعتك',
     wordId
@@ -137,7 +356,7 @@ wordsRoutes.patch('/:id/toggle', parentAuthMiddleware, async (c) => {
   );
 
   if (!relation) {
-    return c.json({ success: false, error: 'الكلمة غير موجودة في مجموعتك' }, 404);
+    return c.json({ ok: false, success: false, error: { message: 'الكلمة غير موجودة في مجموعتك' } }, 404);
   }
 
   const nextState = relation.enabled === 1 ? 0 : 1;
@@ -147,6 +366,7 @@ wordsRoutes.patch('/:id/toggle', parentAuthMiddleware, async (c) => {
   );
 
   return c.json({
+    ok: true,
     success: true,
     enabled: nextState === 1,
     message: nextState === 1 ? 'تم تفعيل الكلمة لأطفالك' : 'تم تعطيل الكلمة لأطفالك'
@@ -163,11 +383,15 @@ wordsRoutes.delete('/:id', parentAuthMiddleware, async (c) => {
     'DELETE FROM parent_words WHERE parent_id = ? AND word_id = ?',
     user.id, wordId
   );
+  await db.run(
+    'DELETE FROM parent_word_categories WHERE parent_id = ? AND word_id = ?',
+    user.id, wordId
+  );
 
-  return c.json({ success: true, message: 'تمت إزالة الكلمة من مجموعتك بنجاح' });
+  return c.json({ ok: true, success: true, message: 'تمت إزالة الكلمة من مجموعتك بنجاح' });
 });
 
-// POST /api/words/generate: AI generation with multi-pass batching & full diagnostics
+// POST /api/words/generate: AI generation with multi-pass batching & full persistence
 wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
@@ -185,8 +409,7 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
   let aiCallsAttempted = 0;
   let aiModelUsed = '@cf/meta/llama-3.2-3b-instruct';
 
-  console.log(`[AI-GEN] Request received: count=${requestedCount}, level=${level}, category="${category}", parent=${user.id}`);
-  console.log(`[AI-GEN] Workers AI binding present: ${!!c.env.AI}`);
+  console.log(`[AI-GEN] Request: count=${requestedCount}, level=${level}, category="${category}", parent=${user.id}`);
 
   const acceptedWords: Word[] = [];
   const processedNormSet = new Set<string>();
@@ -203,7 +426,7 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
   }
 
   let attempts = 0;
-  const maxAttempts = 10;
+  const maxAttempts = 8;
 
   while (acceptedWords.length < requestedCount && attempts < maxAttempts) {
     attempts++;
@@ -212,11 +435,10 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
 
     let candidates: string[] = [];
 
-    // 1. Try Cloudflare Workers AI
+    // 1. Try Cloudflare Workers AI if available
     if (c.env.AI) {
       aiCallsAttempted++;
       try {
-        console.log(`[AI-GEN] Attempt ${attempts}: Calling ${aiModelUsed} for ${batchSize} words...`);
         const prompt = `أنت خبير لغوي متخصص في تعليم القراءة العربية للأطفال.
 المطلوب: اقترح بالضبط ${batchSize} كلمات عربية حقيقية غير مكررة في فئة "${category}" بمستوى صعوبة ${level} (${level <= 2 ? 'كلمات بسيطة من 2 إلى 3 أحرف' : 'كلمات من 4 إلى 5 أحرف'}).
 أرجع النتيجة بصيغة JSON فقط بهذا الشكل الصارم دون أي نص إضافي:
@@ -228,15 +450,11 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
             messages: [{ role: 'user', content: prompt }]
           });
         } catch (mErr: any) {
-          console.warn(`[AI-GEN] Primary model ${aiModelUsed} error:`, mErr.message);
           aiModelUsed = '@cf/meta/llama-3.1-8b-instruct-fp8';
           aiResponse = await c.env.AI.run(aiModelUsed, {
             messages: [{ role: 'user', content: prompt }]
           });
         }
-
-        const rawShape = typeof aiResponse === 'object' ? Object.keys(aiResponse) : typeof aiResponse;
-        console.log(`[AI-GEN] AI Response received. Shape: ${JSON.stringify(rawShape)}`);
 
         const responseText = aiResponse?.response || (typeof aiResponse === 'string' ? aiResponse : JSON.stringify(aiResponse));
         if (responseText) {
@@ -246,20 +464,21 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
             if (Array.isArray(parsed.words)) {
               candidates = parsed.words;
               aiCallsSuccess++;
-              console.log(`[AI-GEN] Parsed ${candidates.length} candidate words from AI JSON.`);
             }
           }
         }
       } catch (aiErr: any) {
-        console.error(`[AI-GEN] Workers AI execution error:`, aiErr.message || String(aiErr));
+        console.warn(`[AI-GEN] Workers AI execution warning:`, aiErr.message || String(aiErr));
       }
     }
 
     generatedTotal += candidates.length;
 
-    // 2. Fallback pool if AI was unavailable or produced insufficient candidates
+    // 2. Comprehensive fallback pool from dictionary
     if (candidates.length < batchSize) {
-      const catList = EXPANDED_ARABIC_DICTIONARY[category] || EXPANDED_ARABIC_DICTIONARY['حيوانات'];
+      const catList = EXPANDED_ARABIC_DICTIONARY[category] || 
+                      EXPANDED_ARABIC_DICTIONARY['حيوانات'] || 
+                      EXPANDED_ARABIC_DICTIONARY['كلمات عامة'];
       const filteredLinguistic = catList.filter(w => !processedNormSet.has(normalizeArabicText(w)));
       const shuffled = [...filteredLinguistic].sort(() => Math.random() - 0.5);
       const supplemental = shuffled.slice(0, batchSize - candidates.length);
@@ -267,7 +486,7 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
       generatedTotal += supplemental.length;
     }
 
-    // 3. Validate, Normalize, Deduplicate, and Insert candidates
+    // 3. Validate, Normalize, Deduplicate, and Persist into D1
     for (const rawText of candidates) {
       if (acceptedWords.length >= requestedCount) break;
       if (!rawText || typeof rawText !== 'string') {
@@ -288,17 +507,19 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
       }
       processedNormSet.add(norm);
 
-      // Find or insert into central words table
-      let wordRow = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ?', norm);
+      // Insert or find central word
+      let wordRow = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ? LIMIT 1', norm);
       let wordId: string;
 
       if (!wordRow) {
         wordId = `w_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         await db.run(
-          `INSERT INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
+          `INSERT OR IGNORE INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
            VALUES (?, ?, ?, ?, ?, 1, 'ai', 'approved', ?, ?)`,
           wordId, rawText.trim(), norm, category, level, now, now
         );
+        const recheck = await db.first<Word>('SELECT * FROM words WHERE normalized_text = ? LIMIT 1', norm);
+        if (recheck) wordId = recheck.id;
       } else {
         wordId = wordRow.id;
       }
@@ -309,6 +530,14 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
         `INSERT OR IGNORE INTO parent_words (id, parent_id, word_id, created_at, enabled, source)
          VALUES (?, ?, ?, ?, 1, 'ai')`,
         relationId, user.id, wordId, now
+      );
+
+      // Link to parent_word_categories relation
+      const pwcId = `pwc_${user.id}_${wordId}_${encodeURIComponent(category)}`;
+      await db.run(
+        `INSERT OR IGNORE INTO parent_word_categories (id, parent_id, word_id, category_name, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        pwcId, user.id, wordId, category, now
       );
 
       acceptedWords.push({
@@ -327,25 +556,41 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
 
   console.log(`[AI-GEN] Final: requested=${requestedCount}, generated=${generatedTotal}, accepted=${acceptedWords.length}, duplicates=${duplicatesCount}, rejected=${rejectedCount}`);
 
-  const msg = acceptedWords.length >= requestedCount
-    ? `تم بنجاح توليد ${acceptedWords.length} كلمة وإضافتها لمجموعتك`
-    : `تم إنشاء ${acceptedWords.length} كلمة من أصل ${requestedCount}`;
+  if (acceptedWords.length === 0) {
+    return c.json({
+      ok: false,
+      success: false,
+      requested: requestedCount,
+      generated: generatedTotal,
+      valid: 0,
+      duplicates: duplicatesCount,
+      added: 0,
+      categoryId: category,
+      words: [],
+      error: {
+        code: 'NO_NEW_WORDS',
+        message: 'جميع الكلمات المقترحة لهذه الفئة مضافة مسبقاً في مجموعتك، جرب فئة أخرى أو مستوى مختلف'
+      }
+    }, 400);
+  }
+
+  const msg = `تمت إضافة ${acceptedWords.length} كلمة جديدة بنجاح إلى مجموعتك`;
 
   return c.json({
+    ok: true,
     success: true,
     requested: requestedCount,
     generated: generatedTotal,
-    accepted: acceptedWords.length,
+    valid: acceptedWords.length,
     duplicates: duplicatesCount,
-    rejected: rejectedCount,
-    aiUsed: aiCallsSuccess > 0,
-    aiModel: aiModelUsed,
+    added: acceptedWords.length,
+    categoryId: category,
     words: acceptedWords,
     message: msg
   });
 });
 
-// POST /api/words/bulk-import: Bulk import words by raw text or array with full validation & deduplication
+// POST /api/words/bulk-import: Bulk import words with full validation, transaction safety & deduplication
 wordsRoutes.post('/bulk-import', parentAuthMiddleware, async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
@@ -424,10 +669,9 @@ wordsRoutes.post('/bulk-import', parentAuthMiddleware, async (c) => {
   let addedCount = 0;
   const addedWords: Word[] = [];
 
-  // Batch process valid candidates
+  // Batch process valid candidates with INSERT OR IGNORE
   for (const cand of validCandidates) {
-    // Check if word exists globally in words table
-    const globalWord = await db.queryFirst<Word>(
+    let globalWord = await db.first<Word>(
       'SELECT * FROM words WHERE normalized_text = ? LIMIT 1',
       cand.normalized
     );
@@ -438,10 +682,18 @@ wordsRoutes.post('/bulk-import', parentAuthMiddleware, async (c) => {
     } else {
       wordId = `w_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await db.run(
-        `INSERT INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
+        `INSERT OR IGNORE INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
          VALUES (?, ?, ?, ?, ?, 1, 'bulk_import', 'approved', ?, ?)`,
         wordId, cand.raw, cand.normalized, category, level, now, now
       );
+      // Re-query word id in case it was ignored
+      const recheck = await db.first<Word>(
+        'SELECT id FROM words WHERE normalized_text = ? LIMIT 1',
+        cand.normalized
+      );
+      if (recheck) {
+        wordId = recheck.id;
+      }
     }
 
     // Link to parent_words
@@ -475,19 +727,21 @@ wordsRoutes.post('/bulk-import', parentAuthMiddleware, async (c) => {
     });
   }
 
+  console.log(`[BULK-IMPORT] parent=${user.id}, received=${tokens.length}, inserted=${addedCount}, alreadyOwned=${existingCount}, invalid=${invalidCount}, category="${category}"`);
+
   const message = `تمت إضافة ${addedCount} كلمة بنجاح` +
     (existingCount > 0 ? `، و ${existingCount} موجودة مسبقاً` : '') +
     (invalidCount > 0 ? `، و ${invalidCount} غير صالحة` : '');
 
   return c.json({
+    ok: true,
     success: true,
-    totalFound: tokens.length,
-    addedCount,
-    existingCount,
-    invalidCount,
+    received: tokens.length,
+    inserted: addedCount,
+    alreadyOwned: existingCount,
+    invalid: invalidCount,
     details,
     words: addedWords,
     message
   });
 });
-

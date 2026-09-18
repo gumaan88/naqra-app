@@ -95,7 +95,7 @@ gamesRoutes.get('/game-pack', anyAuthMiddleware, async (c) => {
           wordText: targetWord.text,
           imageUrl: targetWord.image_url!,
           isCorrect: true,
-          status: 'idle',
+          status: 'idle' as const,
         },
         ...distractors.map(d => ({
           id: `opt-distractor-${d.id}-${Math.random().toString(36).substring(2, 6)}`,

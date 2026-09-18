@@ -7,8 +7,9 @@ import { X, FileText, CheckCircle2, AlertTriangle, XCircle, Sparkles, Loader2, A
 interface BulkWordImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (addedWords?: any[]) => void;
   existingParentWords: { normalized_text: string }[];
+  availableCategories?: string[];
 }
 
 interface ParsedWordItem {
@@ -18,13 +19,15 @@ interface ParsedWordItem {
   reason?: string;
 }
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   'حيوانات',
+  'عائلة',
   'منزل',
   'مدرسة',
   'طبيعة',
   'طعام',
   'مواصلات',
+  'أدوات',
   'جسم الإنسان',
   'أفعال',
   'كلمات عامة'
@@ -34,9 +37,11 @@ export const BulkWordImportModal: React.FC<BulkWordImportModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  existingParentWords
+  existingParentWords,
+  availableCategories = DEFAULT_CATEGORIES
 }) => {
-  const [category, setCategory] = useState<string>('حيوانات');
+  const categoryOptions = availableCategories.length > 0 ? availableCategories : DEFAULT_CATEGORIES;
+  const [category, setCategory] = useState<string>(categoryOptions[0] || 'حيوانات');
   const [level, setLevel] = useState<number>(1);
   const [rawText, setRawText] = useState<string>('');
   
@@ -113,11 +118,11 @@ export const BulkWordImportModal: React.FC<BulkWordImportModalProps> = ({
         rawWords: rawText
       });
 
-      if (res.success) {
+      if (res.ok || res.success) {
         sound.playSuccess();
         setResultMessage(res.message);
         setTimeout(() => {
-          onSuccess();
+          onSuccess(res.words);
           handleReset();
           onClose();
         }, 1200);
@@ -180,7 +185,7 @@ export const BulkWordImportModal: React.FC<BulkWordImportModalProps> = ({
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full h-11 px-3.5 rounded-2xl border border-gray-300 text-sm font-bold bg-white focus:border-brand-turquoise outline-none"
                   >
-                    {CATEGORIES.map((cat) => (
+                    {categoryOptions.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>

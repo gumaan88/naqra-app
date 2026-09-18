@@ -31,7 +31,7 @@ export interface Word {
   difficulty_level: number;  // 1 to 5
   is_imageable: boolean;
   image_url?: string;        // Selected image vector or URL
-  source?: 'curated' | 'ai';
+  source?: 'curated' | 'ai' | 'manual' | 'bulk_import';
   status: 'pending' | 'approved' | 'rejected' | 'archived';
   created_at: string;
   approved_at?: string;
@@ -82,6 +82,7 @@ export interface GameRoundResult {
   firstPass: boolean;
   points: number;
   errorLetters?: string[];
+  eventJson?: string;
 }
 
 export interface ClientSyncBatch {
