@@ -16,14 +16,75 @@
   @apply min-h-[56px] min-w-[56px] font-bold rounded-2xl shadow-md active:scale-95 transition-all duration-150 flex items-center justify-center cursor-pointer;
 }
 
-/* Letter card transitions */
+/* Responsive Letter card using clamp() - adapts seamlessly to screen width & height */
 .letter-card {
-  @apply w-16 h-16 sm:w-20 sm:h-20 text-3xl sm:text-4xl font-extrabold rounded-2xl flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer select-none active:scale-90 border-2;
+  width: clamp(2.7rem, 11vw, 4.4rem);
+  height: clamp(2.7rem, 11vw, 4.4rem);
+  font-size: clamp(1.3rem, 5vw, 2.2rem);
+  font-weight: 800;
+  border-radius: clamp(0.75rem, 2.5vw, 1.25rem);
+  border-width: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  transition: all 0.18s ease-in-out;
+  cursor: pointer;
+  user-select: none;
 }
 
-/* Slot for progress word */
+.letter-card:active {
+  transform: scale(0.92);
+}
+
+/* Slot for target word letters - adapts dynamically to word length and screen width */
 .letter-slot {
-  @apply w-14 h-16 sm:w-16 sm:h-20 text-3xl sm:text-4xl font-extrabold rounded-2xl flex items-center justify-center border-2 border-dashed border-brand-turquoise/40 bg-white/70 shadow-sm transition-all duration-200;
+  width: clamp(2rem, 7.5vw, 3.8rem);
+  height: clamp(2.6rem, 9vw, 4.4rem);
+  font-size: clamp(1.2rem, 4.8vw, 2.2rem);
+  font-weight: 800;
+  border-radius: clamp(0.6rem, 2vw, 1rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-width: 2px;
+  border-style: dashed;
+  border-color: rgba(36, 169, 160, 0.4);
+  background-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.18s ease-in-out;
+}
+
+/* Compact Mode for short mobile viewports (height < 680px) */
+@media (max-height: 680px) {
+  .letter-card {
+    width: clamp(2.4rem, 9.5vw, 3.6rem);
+    height: clamp(2.4rem, 9.5vw, 3.6rem);
+    font-size: clamp(1.15rem, 4.2vw, 1.8rem);
+    border-radius: 0.75rem;
+  }
+
+  .letter-slot {
+    width: clamp(1.8rem, 6.5vw, 3.2rem);
+    height: clamp(2.2rem, 7.5vw, 3.6rem);
+    font-size: clamp(1.1rem, 4vw, 1.7rem);
+    border-radius: 0.6rem;
+  }
+}
+
+/* Ultra-Compact Mode for tiny mobile viewports (height < 580px) */
+@media (max-height: 580px) {
+  .letter-card {
+    width: clamp(2.2rem, 8vw, 3.2rem);
+    height: clamp(2.2rem, 8vw, 3.2rem);
+    font-size: clamp(1rem, 3.5vw, 1.5rem);
+  }
+
+  .letter-slot {
+    width: clamp(1.6rem, 5.5vw, 2.6rem);
+    height: clamp(2rem, 6.5vw, 3rem);
+    font-size: clamp(1rem, 3.5vw, 1.4rem);
+  }
 }
 
 @keyframes shake {

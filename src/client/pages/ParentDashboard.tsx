@@ -7,9 +7,10 @@ import {
   Users, UserPlus, Clock, Target, Award, Star,
   TrendingUp, AlertTriangle, CheckCircle, BookOpen,
   Trash2, Edit, X, Save, Plus, Cpu, ToggleLeft, ToggleRight,
-  Copy, Check, Search, ShieldCheck
+  Copy, Check, Search, ShieldCheck, FileText
 } from 'lucide-react';
 import { sound } from '../lib/audio';
+import { BulkWordImportModal } from '../components/BulkWordImportModal';
 
 export const ParentDashboard: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
@@ -47,6 +48,7 @@ export const ParentDashboard: React.FC = () => {
 
   // AI Generation Modal
   const [showAiModal, setShowAiModal] = useState<boolean>(false);
+  const [showBulkModal, setShowBulkModal] = useState<boolean>(false);
   const [aiCount, setAiCount] = useState<number>(20);
   const [aiLevel, setAiLevel] = useState<number>(1);
   const [aiCategory, setAiCategory] = useState<string>('حيوانات');
@@ -511,7 +513,18 @@ export const ParentDashboard: React.FC = () => {
               <p className="text-xs text-gray-500 font-medium">الكلمات التي تضيفها أو تولدها تظهر لأطفالك فقط دون غيرهم</p>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={() => {
+                  sound.playTap();
+                  setShowBulkModal(true);
+                }}
+                className="btn-child px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-xs font-black shadow-md flex items-center gap-1.5"
+              >
+                <FileText className="w-4 h-4" />
+                <span>إضافة كلمات دفعة واحدة</span>
+              </button>
+
               <button
                 onClick={() => {
                   sound.playTap();
@@ -867,6 +880,14 @@ export const ParentDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk Words Import Modal */}
+      <BulkWordImportModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        onSuccess={loadParentWords}
+        existingParentWords={parentWords}
+      />
     </div>
   );
 };

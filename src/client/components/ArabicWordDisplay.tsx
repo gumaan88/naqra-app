@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 interface ArabicWordDisplayProps {
   word: string;
   expectedIndex: number;
+  sizeVariant?: 'preview' | 'challenge';
 }
 
 // Unicode Arabic grapheme segmentation
@@ -32,15 +33,41 @@ export function getArabicGraphemes(text: string): GraphemeSegment[] {
   });
 }
 
-export const ArabicWordDisplay: React.FC<ArabicWordDisplayProps> = ({ word, expectedIndex }) => {
+export const ArabicWordDisplay: React.FC<ArabicWordDisplayProps> = ({
+  word,
+  expectedIndex,
+  sizeVariant = 'challenge'
+}) => {
   const textRef = useRef<HTMLDivElement>(null);
-
   const graphemes = useMemo(() => getArabicGraphemes(word), [word]);
+
+  // Dynamic font sizing based on word length to strictly prevent wrapping or horizontal scroll
+  const dynamicFontSize = useMemo(() => {
+    const len = graphemes.length;
+    const isPreview = sizeVariant === 'preview';
+
+    if (len <= 3) {
+      return isPreview ? 'clamp(3.4rem, 13vw, 6.2rem)' : 'clamp(2.5rem, 10vw, 4.8rem)';
+    } else if (len <= 5) {
+      return isPreview ? 'clamp(2.7rem, 10vw, 5rem)' : 'clamp(2.1rem, 8vw, 3.8rem)';
+    } else {
+      return isPreview ? 'clamp(2.1rem, 7.5vw, 4rem)' : 'clamp(1.7rem, 6.2vw, 3rem)';
+    }
+  }, [graphemes.length, sizeVariant]);
 
   // CSS Custom Highlight API registration
   useEffect(() => {
     const container = textRef.current;
     if (!container) return;
+
+    // In preview mode, do not highlight single letters
+    if (sizeVariant === 'preview') {
+      if (typeof (window as any).CSS !== 'undefined' && 'highlights' in (window as any).CSS) {
+        (window as any).CSS.highlights.delete('completed-letters');
+        (window as any).CSS.highlights.delete('current-letter');
+      }
+      return;
+    }
 
     // Check if browser supports CSS Custom Highlight API
     const isHighlightSupported = typeof (window as any).CSS !== 'undefined' &&
@@ -88,10 +115,10 @@ export const ArabicWordDisplay: React.FC<ArabicWordDisplayProps> = ({ word, expe
         (window as any).CSS.highlights.delete('current-letter');
       }
     };
-  }, [word, expectedIndex, graphemes]);
+  }, [word, expectedIndex, graphemes, sizeVariant]);
 
   return (
-    <div className="relative select-none py-2 sm:py-4">
+    <div className="relative select-none flex items-center justify-center max-w-full">
       {/* 
         Single unbroken Text Node:
         Crucial educational rule: preserves Arabic contextual shaping completely.
@@ -100,11 +127,12 @@ export const ArabicWordDisplay: React.FC<ArabicWordDisplayProps> = ({ word, expe
       <div
         ref={textRef}
         dir="rtl"
-        className="text-6xl sm:text-7xl md:text-8xl font-black text-brand-text tracking-normal text-center"
+        className="font-black text-brand-text tracking-normal text-center whitespace-nowrap"
         style={{
+          fontSize: dynamicFontSize,
           fontFamily: "'Noto Sans Arabic', 'Tajawal', sans-serif",
           letterSpacing: 0,
-          lineHeight: 1.35,
+          lineHeight: 1.25,
           fontFeatureSettings: '"kern" 1, "liga" 1',
         }}
       >

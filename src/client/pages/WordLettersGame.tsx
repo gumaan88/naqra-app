@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/authContext';
 import { api } from '../lib/api';
 import { localDb } from '../lib/db';
 import { syncManager } from '../lib/sync';
 import { sound } from '../lib/audio';
+import { praiseAudio } from '../lib/praiseAudio';
 import { fireCelebrationConfetti } from '../components/Confetti';
 import {
   Word,
@@ -14,11 +15,11 @@ import {
   finalizeRoundResult,
 } from '@shared/game-engine';
 import { GameRoundResult, ClientSyncBatch } from '@shared/types';
-import { Star, Sparkles, Home, Volume2, VolumeX, ArrowLeft } from 'lucide-react';
+import { Star, Sparkles, Home, Volume2, VolumeX } from 'lucide-react';
 import { ArabicWordDisplay } from '../components/ArabicWordDisplay';
 
 export const WordLettersGame: React.FC = () => {
-  const { activeChild, isLoading, isMuted, toggleSound } = useAuth();
+  const { activeChild, isMuted, toggleSound } = useAuth();
   const navigate = useNavigate();
 
   const [words, setWords] = useState<Word[]>([]);
@@ -28,6 +29,13 @@ export const WordLettersGame: React.FC = () => {
   const [shakingCardId, setShakingCardId] = useState<string | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const [loading, setLoading] = useState<boolean>(true);
+
+  // 2-Phase Flow: 'preview' -> 'playing' -> 'success'
+  const [gamePhase, setGamePhase] = useState<'preview' | 'playing' | 'success'>('preview');
+  const [previewStartedAt, setPreviewStartedAt] = useState<number>(Date.now());
+  const [previewDurationMs, setPreviewDurationMs] = useState<number>(0);
+  const [previewHelpUsed, setPreviewHelpUsed] = useState<boolean>(false);
+  const [challengeStartedAt, setChallengeStartedAt] = useState<number>(0);
 
   // Load words pack (Local-first from IndexedDB or API)
   useEffect(() => {
@@ -78,15 +86,35 @@ export const WordLettersGame: React.FC = () => {
     const state = initWordLettersRound(word, activeChild?.current_level || 1);
     setRoundState(state);
     setShakingCardId(null);
+    setGamePhase('preview');
+    setPreviewStartedAt(Date.now());
+    setPreviewDurationMs(0);
+    setPreviewHelpUsed(false);
+  };
+
+  const handleReadyToPlay = () => {
+    sound.playTap();
+    const duration = Math.max(100, Date.now() - previewStartedAt);
+    setPreviewDurationMs(duration);
+    setGamePhase('playing');
+    setChallengeStartedAt(Date.now());
+  };
+
+  const handlePreviewHelp = () => {
+    sound.playTap();
+    setPreviewHelpUsed(true);
+    if (roundState) {
+      const cleanWord = roundState.word.normalized_text || roundState.word.text;
+      praiseAudio.speakWord(cleanWord);
+    }
   };
 
   const handleCardClick = (cardId: string) => {
-    if (!roundState || roundState.isCompleted) return;
+    if (!roundState || roundState.isCompleted || gamePhase !== 'playing') return;
 
     const res = processLetterCardTap(roundState, cardId, Date.now());
 
     if (res.outcome === 'ignored') {
-      // Rule 88 & 327: Do nothing
       return;
     }
 
@@ -95,25 +123,39 @@ export const WordLettersGame: React.FC = () => {
       setRoundState(res.state);
     } else if (res.outcome === 'completed') {
       sound.playSuccess();
-      sound.playCelebration();
+      setGamePhase('success');
+      const challengeDuration = Math.max(100, Date.now() - challengeStartedAt);
+
+      // Play natural human Arabic praise from Shuffle Bag after 150ms
+      setTimeout(() => {
+        praiseAudio.playPraise();
+      }, 150);
+
       fireCelebrationConfetti();
       setRoundState(res.state);
 
-      // Record finished round
+      // Record finished round with distinct preview and challenge timings
       const result = finalizeRoundResult(res.state, currentWordIndex);
+      result.activeSolveMs = challengeDuration;
+      result.eventJson = JSON.stringify({
+        previewDurationMs,
+        challengeDurationMs: challengeDuration,
+        previewHelpUsed,
+        wordText: roundState.word.normalized_text || roundState.word.text,
+      });
+
       const updatedResults = [...completedRounds, result];
       setCompletedRounds(updatedResults);
 
-      // Brief celebration pause before moving to next word or ending session
+      // Transition to next word (Phase 1 preview) after celebration
       setTimeout(() => {
         if (currentWordIndex + 1 < words.length) {
           setCurrentWordIndex(prev => prev + 1);
           startWordRound(words[currentWordIndex + 1]);
         } else {
-          // Session Finished: Build batch and sync
           finishSession(updatedResults);
         }
-      }, 1400);
+      }, 1500);
     } else if (res.outcome === 'error') {
       sound.playError();
       setShakingCardId(cardId);
@@ -141,7 +183,7 @@ export const WordLettersGame: React.FC = () => {
       rounds: results,
     };
 
-    // Background resilient sync (IndexedDB + Worker batch sync)
+    // Background resilient sync
     syncManager.recordAndSyncBatch(batch);
 
     // Navigate to summary screen
@@ -157,124 +199,198 @@ export const WordLettersGame: React.FC = () => {
 
   if (loading || !roundState) {
     return (
-      <div className="min-h-[calc(100vh-68px)] flex flex-col items-center justify-center">
-        <div className="w-14 h-14 border-4 border-brand-turquoise border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="font-bold text-lg text-gray-600">نُجَهِّزُ حُرُوفَ الْكَلِمَاتِ يَا بَطَل...</p>
+      <div className="h-[100dvh] max-h-[100dvh] flex flex-col items-center justify-center select-none overflow-hidden">
+        <div className="w-12 h-12 border-4 border-brand-turquoise border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="font-bold text-base text-gray-600">نُجَهِّزُ حُرُوفَ الْكَلِمَاتِ يَا بَطَل...</p>
       </div>
     );
   }
 
-  const currentWord = roundState.word;
   const targetWordClean = roundState.word.normalized_text || roundState.word.text;
 
   return (
-    <div className="min-h-[calc(100vh-68px)] max-w-2xl mx-auto px-4 py-6 flex flex-col justify-between select-none">
-      {/* Top Bar: Progress and Actions */}
-      <div className="flex items-center justify-between mb-4">
+    <div className="h-[100dvh] max-h-[100dvh] w-full max-w-xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex flex-col justify-between overflow-hidden select-none">
+      {/* Top Header: Compact integrated bar */}
+      <div className="flex items-center justify-between gap-2 flex-shrink-0 mb-1 sm:mb-2">
         <button
           onClick={() => navigate('/child-home')}
-          className="btn-child !min-h-[44px] !min-w-[44px] w-11 h-11 bg-white border border-gray-200 text-gray-600 rounded-2xl"
+          className="btn-child !min-h-[40px] !min-w-[40px] w-10 h-10 bg-white border border-gray-200 text-gray-600 rounded-xl shadow-sm"
           title="الرئيسية"
         >
           <Home className="w-5 h-5" />
         </button>
 
-        {/* Progress pills */}
-        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-2xl border border-teal-200 shadow-sm">
+        {/* Child Profile & Points */}
+        <div className="flex items-center gap-1.5 bg-white/90 px-2.5 py-1 rounded-xl border border-teal-200 shadow-sm text-xs font-bold text-gray-700">
+          <span className="truncate max-w-[80px]">{activeChild?.display_name || 'بطل نقرأ'}</span>
+          <span className="flex items-center gap-0.5 text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-lg font-black">
+            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+            {activeChild?.total_points || 0}
+          </span>
+        </div>
+
+        {/* Progress Pills */}
+        <div className="flex items-center gap-1 bg-white/90 px-2.5 py-1.5 rounded-xl border border-teal-200 shadow-sm">
           {words.map((_, i) => (
             <div
               key={i}
-              className={`h-2.5 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-all ${
                 i < currentWordIndex
-                  ? 'w-6 bg-brand-success'
+                  ? 'w-3.5 sm:w-5 bg-brand-success'
                   : i === currentWordIndex
-                  ? 'w-8 bg-brand-turquoise animate-pulse'
-                  : 'w-2.5 bg-gray-200'
+                  ? 'w-5 sm:w-7 bg-brand-turquoise animate-pulse'
+                  : 'w-2 bg-gray-200'
               }`}
             />
           ))}
         </div>
 
+        {/* Sound Toggle */}
         <button
           onClick={toggleSound}
-          className="btn-child !min-h-[44px] !min-w-[44px] w-11 h-11 bg-white border border-gray-200 text-gray-600 rounded-2xl"
+          className="btn-child !min-h-[40px] !min-w-[40px] w-10 h-10 bg-white border border-gray-200 text-gray-600 rounded-xl shadow-sm"
+          title={isMuted ? 'تفعيل الصوت' : 'كتم الصوت'}
         >
-          {isMuted ? <VolumeX className="w-5 h-5 text-gray-400" /> : <Volume2 className="w-5 h-5 text-amber-600" />}
+          {isMuted ? <VolumeX className="w-4 h-4 text-gray-400" /> : <Volume2 className="w-4 h-4 text-amber-600" />}
         </button>
       </div>
 
-      {/* Upper Half: Large Arabic Target Word Without Tashkeel */}
-      <div className="flex flex-col items-center justify-center my-auto py-6">
-        <div className="bg-white/90 backdrop-blur rounded-3xl p-6 sm:p-8 border-2 border-brand-turquoise/40 shadow-xl w-full text-center relative overflow-hidden">
-          <div className="text-xs font-bold text-gray-400 mb-2">اقْرَأِ الْكَلِمَةَ كَامِلَةً ثُمَّ اخْتَرِ الْحُرُوفَ بِالتَّرْتِيب:</div>
-          <ArabicWordDisplay word={targetWordClean} expectedIndex={roundState.expectedIndex} />
+      {/* PHASE 1 — Reading Preview */}
+      {gamePhase === 'preview' ? (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 sm:gap-5 py-2">
+          <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 sm:p-7 border-2 border-brand-turquoise/40 shadow-xl w-full text-center relative overflow-hidden flex flex-col items-center justify-center">
+            <div className="text-xs sm:text-sm font-bold text-gray-400 mb-2 sm:mb-4">
+              اقْرَأِ الْكَلِمَةَ بِهُدُوء:
+            </div>
 
-          {/* Progress slots: slot for each letter of the target word in Visual RTL */}
-          <div dir="rtl" className="flex items-center justify-center gap-2 sm:gap-3 mt-6">
-            {roundState.targetLetters.map((char, index) => {
-              const isFilled = index < roundState.expectedIndex;
-              const isActive = index === roundState.expectedIndex;
-              return (
-                <div
-                  key={index}
-                  className={`letter-slot ${
-                    isFilled
-                      ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md'
-                      : isActive
-                      ? 'border-2 border-brand-turquoise bg-teal-50/80 shadow-md scale-105 ring-4 ring-brand-turquoise/20'
-                      : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
-                  }`}
-                >
-                  {isFilled ? char : ''}
-                </div>
-              );
-            })}
+            {/* Word Display (Unbroken, connected, cleanly sized) */}
+            <div className="py-2 sm:py-4 max-w-full overflow-visible">
+              <ArabicWordDisplay
+                word={targetWordClean}
+                expectedIndex={0}
+                sizeVariant="preview"
+              />
+            </div>
+
+            <p className="text-xs text-teal-800 font-bold mt-2 bg-teal-50/80 px-3.5 py-1 rounded-full border border-teal-100 shadow-sm">
+              تأمّل شكل الكلمة وحاول تهجئتها في ذهنك ✨
+            </p>
+          </div>
+
+          {/* Action Area */}
+          <div className="flex flex-col items-center gap-2.5 w-full max-w-xs px-4">
+            <button
+              type="button"
+              onClick={handleReadyToPlay}
+              className="btn-child w-full !min-h-[50px] sm:!min-h-[56px] bg-gradient-to-r from-brand-turquoise to-[#22B8AE] text-white text-base sm:text-lg font-black shadow-lg hover:shadow-xl active:scale-95 flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-5 h-5 text-amber-300" />
+              <span>قَرَأْتُهَا ✨</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePreviewHelp}
+              className="btn-child !min-h-[38px] px-4 py-1 bg-amber-50/90 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <Volume2 className="w-4 h-4 text-amber-600" />
+              <span>سَاعِدْنِي (استمع لنطق الكلمة)</span>
+            </button>
           </div>
         </div>
-      </div>
+      ) : (
+        /* PHASE 2 — Letter Challenge */
+        <>
+          {/* Upper Area: Word & Single-Row Answer Slots */}
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-1 sm:py-2">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-5 border-2 border-brand-turquoise/40 shadow-lg w-full text-center relative overflow-hidden flex flex-col justify-center items-center">
+              <ArabicWordDisplay
+                word={targetWordClean}
+                expectedIndex={roundState.expectedIndex}
+                sizeVariant="challenge"
+              />
 
-      {/* Lower Half: Shuffled Letter Cards */}
-      <div className="pb-8">
-        {/* Prominent, beautifully styled guidance prompt above letter cards */}
-        {roundState.expectedIndex < roundState.targetLetters.length && (
-          <div className="flex items-center justify-center mb-4">
-            <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-2xl bg-white border-2 border-brand-turquoise/40 shadow-sm text-sm sm:text-base font-bold text-teal-900">
-              <span className="text-gray-600">الحَرْفُ المَطْلُوب:</span>
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-turquoise text-white font-black text-xl shadow-sm">
-                {roundState.targetLetters[roundState.expectedIndex]}
-              </span>
+              {/* Dynamic Single-Row Answer Slots */}
+              <div
+                dir="rtl"
+                className="flex items-center justify-center gap-1.5 sm:gap-2.5 mt-2 sm:mt-4 w-full max-w-full overflow-hidden"
+              >
+                {roundState.targetLetters.map((char, index) => {
+                  const isFilled = index < roundState.expectedIndex;
+                  const isActive = index === roundState.expectedIndex;
+                  const wordLen = roundState.targetLetters.length;
+
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        maxWidth: `calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
+                        flex: `1 1 calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
+                      }}
+                      className={`letter-slot ${
+                        isFilled
+                          ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md'
+                          : isActive
+                          ? 'border-2 border-brand-turquoise bg-teal-50/90 shadow-md scale-105 ring-2 ring-brand-turquoise/30'
+                          : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
+                      }`}
+                    >
+                      {isFilled ? char : ''}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 max-w-lg mx-auto">
-          {roundState.cards.map((card) => {
-            const isUsed = card.isUsed;
-            const isShaking = shakingCardId === card.id;
-            const isHint = roundState.hintCardId === card.id && !isUsed;
+          {/* Target Letter Prompt Badge */}
+          {roundState.expectedIndex < roundState.targetLetters.length && (
+            <div className="flex items-center justify-center my-1 sm:my-2 flex-shrink-0">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 rounded-xl bg-white border border-brand-turquoise/40 shadow-sm text-xs sm:text-sm font-bold text-teal-900">
+                <span className="text-gray-500">الحَرْفُ المَطْلُوب:</span>
+                <span className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-turquoise text-white font-black text-base sm:text-lg shadow-sm">
+                  {roundState.targetLetters[roundState.expectedIndex]}
+                </span>
+              </div>
+            </div>
+          )}
 
-            return (
-              <button
-                key={card.id}
-                type="button"
-                disabled={isUsed}
-                onClick={() => handleCardClick(card.id)}
-                className={`letter-card ${
-                  isUsed
-                    ? 'bg-gray-100 text-gray-300 border-gray-200 shadow-none cursor-default opacity-40 scale-90'
-                    : isShaking
-                    ? 'bg-red-100 text-brand-error border-brand-error animate-shake'
-                    : isHint
-                    ? 'animate-hint'
-                    : 'bg-white text-brand-text border-brand-turquoise/30 hover:border-brand-turquoise hover:bg-teal-50/30'
-                }`}
-              >
-                {card.letter}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+          {/* Lower Area: Shuffled Letter Choice Cards */}
+          <div className="flex-shrink-0 pb-1 sm:pb-2 max-w-md mx-auto w-full">
+            <div
+              className={`grid gap-2 sm:gap-3 justify-center items-center ${
+                roundState.cards.length <= 8 ? 'grid-cols-4' : 'grid-cols-5'
+              }`}
+            >
+              {roundState.cards.map((card) => {
+                const isUsed = card.isUsed;
+                const isShaking = shakingCardId === card.id;
+                const isHint = roundState.hintCardId === card.id && !isUsed;
+
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    disabled={isUsed}
+                    onClick={() => handleCardClick(card.id)}
+                    className={`letter-card mx-auto ${
+                      isUsed
+                        ? 'bg-gray-100 text-gray-300 border-gray-200 shadow-none cursor-default opacity-30 scale-90'
+                        : isShaking
+                        ? 'bg-red-100 text-brand-error border-brand-error animate-shake'
+                        : isHint
+                        ? 'animate-hint'
+                        : 'bg-white text-brand-text border-brand-turquoise/30 hover:border-brand-turquoise hover:bg-teal-50/40'
+                    }`}
+                  >
+                    {card.letter}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

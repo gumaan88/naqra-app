@@ -344,3 +344,150 @@ wordsRoutes.post('/generate', parentAuthMiddleware, async (c) => {
     message: msg
   });
 });
+
+// POST /api/words/bulk-import: Bulk import words by raw text or array with full validation & deduplication
+wordsRoutes.post('/bulk-import', parentAuthMiddleware, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+
+  const category = (body.category && String(body.category).trim()) || 'كلمات عامة';
+  const level = Math.min(5, Math.max(1, Number(body.difficultyLevel || body.level) || 1));
+  const rawInput = body.rawWords;
+
+  // Split input by whitespace, newlines, Arabic comma (،), English comma (,), and tabs
+  let tokens: string[] = [];
+  if (Array.isArray(rawInput)) {
+    tokens = rawInput.map(w => String(w).trim());
+  } else if (typeof rawInput === 'string') {
+    tokens = rawInput
+      .split(/[\s,\u060C\t\r\n]+/)
+      .map(w => w.trim())
+      .filter(Boolean);
+  }
+
+  const db = new DbHelper(c.env.DB);
+  const now = new Date().toISOString();
+
+  // Load existing parent words to detect duplicates
+  const existingParentRows = await db.query<{ word_id: string; normalized_text: string }>(
+    `SELECT pw.word_id, w.normalized_text 
+     FROM parent_words pw
+     JOIN words w ON pw.word_id = w.id
+     WHERE pw.parent_id = ?`,
+    user.id
+  );
+  const parentWordNormMap = new Map<string, string>();
+  for (const row of existingParentRows) {
+    parentWordNormMap.set(row.normalized_text, row.word_id);
+  }
+
+  const seenInBatch = new Set<string>();
+  const validCandidates: { raw: string; normalized: string }[] = [];
+  const details: { text: string; status: 'added' | 'existing' | 'invalid'; reason?: string }[] = [];
+
+  let invalidCount = 0;
+  let existingCount = 0;
+
+  for (const token of tokens) {
+    if (!token) continue;
+    const norm = normalizeArabicText(token);
+    const validation = isValidArabicWord(norm, 10);
+
+    if (!validation.valid) {
+      invalidCount++;
+      details.push({ text: token, status: 'invalid', reason: validation.reason });
+      continue;
+    }
+
+    if (seenInBatch.has(norm)) {
+      continue; // Duplicate within current batch, skip silently
+    }
+    seenInBatch.add(norm);
+
+    if (parentWordNormMap.has(norm)) {
+      existingCount++;
+      details.push({ text: norm, status: 'existing', reason: 'موجودة مسبقاً في مجموعتك' });
+      // Ensure category link is recorded
+      const existingWordId = parentWordNormMap.get(norm)!;
+      const pwcId = `pwc_${user.id}_${existingWordId}_${encodeURIComponent(category)}`;
+      await db.run(
+        `INSERT OR IGNORE INTO parent_word_categories (id, parent_id, word_id, category_name, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        pwcId, user.id, existingWordId, category, now
+      );
+      continue;
+    }
+
+    validCandidates.push({ raw: norm, normalized: norm });
+  }
+
+  let addedCount = 0;
+  const addedWords: Word[] = [];
+
+  // Batch process valid candidates
+  for (const cand of validCandidates) {
+    // Check if word exists globally in words table
+    const globalWord = await db.queryFirst<Word>(
+      'SELECT * FROM words WHERE normalized_text = ? LIMIT 1',
+      cand.normalized
+    );
+
+    let wordId: string;
+    if (globalWord) {
+      wordId = globalWord.id;
+    } else {
+      wordId = `w_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      await db.run(
+        `INSERT INTO words (id, text, normalized_text, category, difficulty_level, is_imageable, source, status, created_at, approved_at)
+         VALUES (?, ?, ?, ?, ?, 1, 'bulk_import', 'approved', ?, ?)`,
+        wordId, cand.raw, cand.normalized, category, level, now, now
+      );
+    }
+
+    // Link to parent_words
+    const pwId = `pw_${user.id}_${wordId}`;
+    await db.run(
+      `INSERT OR IGNORE INTO parent_words (id, parent_id, word_id, created_at, enabled, source)
+       VALUES (?, ?, ?, ?, 1, 'bulk_import')`,
+      pwId, user.id, wordId, now
+    );
+
+    // Link to parent_word_categories
+    const pwcId = `pwc_${user.id}_${wordId}_${encodeURIComponent(category)}`;
+    await db.run(
+      `INSERT OR IGNORE INTO parent_word_categories (id, parent_id, word_id, category_name, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      pwcId, user.id, wordId, category, now
+    );
+
+    addedCount++;
+    details.push({ text: cand.raw, status: 'added' });
+    addedWords.push({
+      id: wordId,
+      text: cand.raw,
+      normalized_text: cand.normalized,
+      category,
+      difficulty_level: level,
+      is_imageable: true,
+      source: 'bulk_import',
+      status: 'approved',
+      created_at: now
+    });
+  }
+
+  const message = `تمت إضافة ${addedCount} كلمة بنجاح` +
+    (existingCount > 0 ? `، و ${existingCount} موجودة مسبقاً` : '') +
+    (invalidCount > 0 ? `، و ${invalidCount} غير صالحة` : '');
+
+  return c.json({
+    success: true,
+    totalFound: tokens.length,
+    addedCount,
+    existingCount,
+    invalidCount,
+    details,
+    words: addedWords,
+    message
+  });
+});
+

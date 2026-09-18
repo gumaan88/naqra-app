@@ -31,18 +31,18 @@ export function splitArabicLetters(word: string): string[] {
  * - No numbers, symbols, spaces, dashes
  * - Appropriate length (2 to 7 letters)
  */
-export function isValidArabicWord(text: string): { valid: boolean; reason?: string } {
+export function isValidArabicWord(text: string, maxLen: number = 10): { valid: boolean; reason?: string } {
   const normalized = normalizeArabicText(text);
   if (!normalized) {
     return { valid: false, reason: 'الكلمة فارغة' };
   }
-  if (normalized.length < 2 || normalized.length > 7) {
-    return { valid: false, reason: 'طول الكلمة يجب أن يكون بين حرفين و 7 حروف' };
+  if (normalized.length < 2 || normalized.length > maxLen) {
+    return { valid: false, reason: `طول الكلمة يجب أن يكون بين حرفين و ${maxLen} حروف` };
   }
-  // Arabic Unicode range \u0621-\u064A
-  const arabicOnlyRegex = /^[\u0621-\u064A]+$/;
+  // Arabic Unicode range \u0621-\u064A and \u0671 (alif wasla)
+  const arabicOnlyRegex = /^[\u0621-\u064A\u0671]+$/;
   if (!arabicOnlyRegex.test(normalized)) {
-    return { valid: false, reason: 'تحتوي الكلمة على رموز أو مسافات أو حروف غير عربية' };
+    return { valid: false, reason: 'تحتوي الكلمة على رموز أو أرقام أو حروف غير عربية' };
   }
   return { valid: true };
 }

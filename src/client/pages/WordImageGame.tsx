@@ -5,9 +5,10 @@ import { api } from '../lib/api';
 import { localDb } from '../lib/db';
 import { syncManager } from '../lib/sync';
 import { sound } from '../lib/audio';
+import { praiseAudio } from '../lib/praiseAudio';
 import { fireCelebrationConfetti } from '../components/Confetti';
 import { Word, WordImageOption, GameRoundResult, ClientSyncBatch } from '@shared/types';
-import { Home, Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { Home, Volume2, VolumeX, Sparkles, Star } from 'lucide-react';
 
 interface Question {
   word: Word;
@@ -119,6 +120,9 @@ export const WordImageGame: React.FC = () => {
 
       if (currentIdx + 1 < questions.length) {
         setTimeout(() => {
+          praiseAudio.playPraise();
+        }, 150);
+        setTimeout(() => {
           setCurrentIdx(prev => prev + 1);
           setErrorCount(0);
           setHintOptionId(null);
@@ -127,14 +131,17 @@ export const WordImageGame: React.FC = () => {
           setRoundStartTime(Date.now());
           setCorrectTaps(0);
           setWrongTaps(0);
-        }, 600);
+        }, 800);
       } else {
         // Finished group
+        setTimeout(() => {
+          praiseAudio.playPraise();
+        }, 150);
         sound.playCelebration();
         fireCelebrationConfetti();
         setTimeout(() => {
           finishSession(updatedRounds);
-        }, 1200);
+        }, 1400);
       }
     } else {
       sound.playError();
@@ -198,28 +205,37 @@ export const WordImageGame: React.FC = () => {
   const currentQ = questions[currentIdx];
 
   return (
-    <div className="min-h-[calc(100vh-68px)] max-w-2xl mx-auto px-4 py-6 flex flex-col justify-between select-none">
-      {/* Top Header */}
-      <div className="flex items-center justify-between mb-4">
+    <div className="h-[100dvh] max-h-[100dvh] w-full max-w-xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex flex-col justify-between overflow-hidden select-none">
+      {/* Top Header: Compact integrated bar */}
+      <div className="flex items-center justify-between gap-2 flex-shrink-0 mb-1 sm:mb-2">
         <button
           onClick={() => navigate('/child-home')}
-          className="btn-child !min-h-[44px] !min-w-[44px] w-11 h-11 bg-white border border-gray-200 text-gray-600 rounded-2xl"
+          className="btn-child !min-h-[40px] !min-w-[40px] w-10 h-10 bg-white border border-gray-200 text-gray-600 rounded-xl shadow-sm"
           title="الرئيسية"
         >
           <Home className="w-5 h-5" />
         </button>
 
+        {/* Child Profile & Points */}
+        <div className="flex items-center gap-1.5 bg-white/90 px-2.5 py-1 rounded-xl border border-rose-200 shadow-sm text-xs font-bold text-gray-700">
+          <span className="truncate max-w-[80px]">{activeChild?.display_name || 'بطل نقرأ'}</span>
+          <span className="flex items-center gap-0.5 text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-lg font-black">
+            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+            {activeChild?.total_points || 0}
+          </span>
+        </div>
+
         {/* Progress pills */}
-        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-2xl border border-rose-200 shadow-sm">
+        <div className="flex items-center gap-1 bg-white/90 px-2.5 py-1.5 rounded-xl border border-rose-200 shadow-sm">
           {questions.map((_, i) => (
             <div
               key={i}
-              className={`h-2.5 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-all ${
                 i < currentIdx
-                  ? 'w-6 bg-brand-success'
+                  ? 'w-4 sm:w-5 bg-brand-success'
                   : i === currentIdx
-                  ? 'w-8 bg-brand-coral animate-pulse'
-                  : 'w-2.5 bg-gray-200'
+                  ? 'w-6 sm:w-7 bg-brand-coral animate-pulse'
+                  : 'w-2 bg-gray-200'
               }`}
             />
           ))}
@@ -227,26 +243,31 @@ export const WordImageGame: React.FC = () => {
 
         <button
           onClick={toggleSound}
-          className="btn-child !min-h-[44px] !min-w-[44px] w-11 h-11 bg-white border border-gray-200 text-gray-600 rounded-2xl"
+          className="btn-child !min-h-[40px] !min-w-[40px] w-10 h-10 bg-white border border-gray-200 text-gray-600 rounded-xl shadow-sm"
+          title={isMuted ? 'تفعيل الصوت' : 'كتم الصوت'}
         >
-          {isMuted ? <VolumeX className="w-5 h-5 text-gray-400" /> : <Volume2 className="w-5 h-5 text-amber-600" />}
+          {isMuted ? <VolumeX className="w-4 h-4 text-gray-400" /> : <Volume2 className="w-4 h-4 text-amber-600" />}
         </button>
       </div>
 
       {/* Target Word */}
-      <div className="my-auto text-center py-6">
-        <div className="text-sm font-bold text-gray-500 mb-2">اخْتَرِ الصُّورَةَ الْمُطَابِقَةَ لِلْكَلِمَة:</div>
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2 text-center">
+        <div className="text-xs sm:text-sm font-bold text-gray-400 mb-1 sm:mb-2">اخْتَرِ الصُّورَةَ الْمُطَابِقَةَ لِلْكَلِمَة:</div>
         <div
-          className="text-6xl sm:text-7xl md:text-8xl font-black text-brand-text py-2"
-          style={{ fontFamily: 'Noto Sans Arabic, Tajawal, sans-serif' }}
+          className="font-black text-brand-text py-1"
+          style={{
+            fontFamily: 'Noto Sans Arabic, Tajawal, sans-serif',
+            fontSize: 'clamp(2.5rem, 10vw, 4.6rem)',
+            lineHeight: 1.25,
+          }}
         >
           {currentQ.word.normalized_text || currentQ.word.text}
         </div>
       </div>
 
       {/* 3 Large Image Cards */}
-      <div className="pb-8">
-        <div className="grid grid-cols-3 gap-3 sm:gap-6 max-w-lg mx-auto">
+      <div className="flex-shrink-0 pb-2 sm:pb-4">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-4 max-w-lg mx-auto">
           {currentQ.options.map((opt) => {
             const isShaking = shakingOptionId === opt.id;
             const isHint = hintOptionId === opt.id;
@@ -256,12 +277,12 @@ export const WordImageGame: React.FC = () => {
                 key={opt.id}
                 type="button"
                 onClick={() => handleOptionClick(opt)}
-                className={`aspect-square rounded-3xl p-3 bg-white border-3 transition-all flex items-center justify-center shadow-lg active:scale-95 group ${
+                className={`aspect-square rounded-2xl sm:rounded-3xl p-2.5 bg-white border-2 transition-all flex items-center justify-center shadow-md active:scale-95 group ${
                   isShaking
                     ? 'border-brand-error bg-red-50 animate-shake'
                     : isHint
                     ? 'animate-hint'
-                    : 'border-brand-coral/30 hover:border-brand-coral hover:shadow-xl'
+                    : 'border-brand-coral/30 hover:border-brand-coral hover:shadow-lg'
                 }`}
               >
                 <img

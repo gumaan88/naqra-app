@@ -87,6 +87,20 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(params),
       }),
+    bulkImport: (data: { category: string; difficultyLevel: number; rawWords: string }) =>
+      request<{
+        success: boolean;
+        totalFound: number;
+        addedCount: number;
+        existingCount: number;
+        invalidCount: number;
+        details: { text: string; status: 'added' | 'existing' | 'invalid'; reason?: string }[];
+        words: any[];
+        message: string;
+      }>('/api/words/bulk-import', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   children: {
