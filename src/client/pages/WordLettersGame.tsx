@@ -122,9 +122,19 @@ export const WordLettersGame: React.FC = () => {
       sound.playSuccess();
       setRoundState(res.state);
     } else if (res.outcome === 'error') {
-      sound.playError();
+      // Gentle child-friendly wrong letter feedback:
+      // 1. Soft error tone (warm non-punitive "بوب" / "تن")
+      praiseAudio.playSoftError();
+      // 2. Tile turns soft red with subtle wiggle animation (strictly no layout shift)
+      setShakingCardId(cardId);
+      // 3. Reset streak count
       setStreakCount(0);
+      // 4. Update state (does not advance expectedIndex; triggers gentle hint on 3rd error)
       setRoundState(res.state);
+      // 5. Automatically revert tile to normal appearance after 380ms
+      setTimeout(() => {
+        setShakingCardId(null);
+      }, 380);
     } else if (res.outcome === 'completed') {
       const nextStreak = res.state.wrongTaps === 0 ? streakCount + 1 : 0;
       setStreakCount(nextStreak);
@@ -161,13 +171,6 @@ export const WordLettersGame: React.FC = () => {
           finishSession(updatedResults);
         }
       }, 1500);
-    } else if (res.outcome === 'error') {
-      sound.playError();
-      setShakingCardId(cardId);
-      setRoundState(res.state);
-      setTimeout(() => {
-        setShakingCardId(null);
-      }, 400);
     }
   };
 
@@ -214,9 +217,9 @@ export const WordLettersGame: React.FC = () => {
   const targetWordClean = roundState.word.normalized_text || roundState.word.text;
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full max-w-xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex flex-col justify-between overflow-hidden select-none">
+    <div className="h-[100dvh] max-h-[100dvh] w-full max-w-xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex flex-col overflow-hidden select-none">
       {/* Top Header: Compact integrated bar */}
-      <div className="flex items-center justify-between gap-2 flex-shrink-0 mb-1 sm:mb-2">
+      <div className="flex items-center justify-between gap-2 flex-shrink-0 h-10 sm:h-12 mb-1 sm:mb-2">
         <button
           onClick={() => navigate('/child-home')}
           className="btn-child !min-h-[40px] !min-w-[40px] w-10 h-10 bg-white border border-gray-200 text-gray-600 rounded-xl shadow-sm"
@@ -262,7 +265,7 @@ export const WordLettersGame: React.FC = () => {
 
       {/* PHASE 1 — Reading Preview */}
       {gamePhase === 'preview' ? (
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 sm:gap-5 py-2">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 sm:gap-4 py-2 my-auto max-w-md mx-auto w-full">
           <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 sm:p-7 border-2 border-brand-turquoise/40 shadow-xl w-full text-center relative overflow-hidden flex flex-col items-center justify-center">
             <div className="text-xs sm:text-sm font-bold text-gray-400 mb-2 sm:mb-4">
               اقْرَأِ الْكَلِمَةَ بِهُدُوء:
@@ -304,54 +307,52 @@ export const WordLettersGame: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* PHASE 2 — Letter Challenge */
-        <>
-          {/* Upper Area: Word & Single-Row Answer Slots */}
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-1 sm:py-2">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-5 border-2 border-brand-turquoise/40 shadow-lg w-full text-center relative overflow-hidden flex flex-col justify-center items-center">
-              <ArabicWordDisplay
-                word={targetWordClean}
-                expectedIndex={roundState.expectedIndex}
-                sizeVariant="challenge"
-              />
+        /* PHASE 2 — Main Game Zone: A unified, cohesive educational unit centered vertically */
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center my-auto w-full max-w-md mx-auto gap-[clamp(8px,1.8vh,18px)]">
+          {/* 1. Word Card & Dynamic Single-Row Answer Slots */}
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-5 border-2 border-brand-turquoise/40 shadow-lg w-full text-center relative overflow-hidden flex flex-col justify-center items-center flex-shrink-0">
+            <ArabicWordDisplay
+              word={targetWordClean}
+              expectedIndex={roundState.expectedIndex}
+              sizeVariant="challenge"
+            />
 
-              {/* Dynamic Single-Row Answer Slots */}
-              <div
-                dir="rtl"
-                className="flex items-center justify-center gap-1.5 sm:gap-2.5 mt-2 sm:mt-4 w-full max-w-full overflow-hidden"
-              >
-                {roundState.targetLetters.map((char, index) => {
-                  const isFilled = index < roundState.expectedIndex;
-                  const isActive = index === roundState.expectedIndex;
-                  const wordLen = roundState.targetLetters.length;
+            {/* Dynamic Single-Row Answer Slots */}
+            <div
+              dir="rtl"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 mt-2 sm:mt-3 w-full max-w-full overflow-hidden"
+            >
+              {roundState.targetLetters.map((char, index) => {
+                const isFilled = index < roundState.expectedIndex;
+                const isActive = index === roundState.expectedIndex;
+                const wordLen = roundState.targetLetters.length;
 
-                  return (
-                    <div
-                      key={index}
-                      style={{
-                        maxWidth: `calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
-                        flex: `1 1 calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
-                      }}
-                      className={`letter-slot ${
-                        isFilled
-                          ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md'
-                          : isActive
-                          ? 'border-2 border-brand-turquoise bg-teal-50/90 shadow-md scale-105 ring-2 ring-brand-turquoise/30'
-                          : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
-                      }`}
-                    >
-                      {isFilled ? char : ''}
-                    </div>
-                  );
-                })}
-              </div>
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      maxWidth: `calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
+                      flex: `1 1 calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
+                    }}
+                    className={`letter-slot ${
+                      isFilled
+                        ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md'
+                        : isActive
+                        ? 'border-2 border-brand-turquoise bg-teal-50/90 shadow-md scale-105 ring-2 ring-brand-turquoise/30'
+                        : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
+                    }`}
+                  >
+                    {isFilled ? char : ''}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Target Letter Prompt Badge */}
+          {/* 2. Target Letter Prompt Badge */}
           {roundState.expectedIndex < roundState.targetLetters.length && (
-            <div className="flex items-center justify-center my-1 sm:my-2 flex-shrink-0">
-              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 rounded-xl bg-white border border-brand-turquoise/40 shadow-sm text-xs sm:text-sm font-bold text-teal-900">
+            <div className="flex items-center justify-center flex-shrink-0">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 rounded-xl bg-white/95 border border-brand-turquoise/40 shadow-sm text-xs sm:text-sm font-bold text-teal-900">
                 <span className="text-gray-500">الحَرْفُ المَطْلُوب:</span>
                 <span className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-turquoise text-white font-black text-base sm:text-lg shadow-sm">
                   {roundState.targetLetters[roundState.expectedIndex]}
@@ -360,16 +361,16 @@ export const WordLettersGame: React.FC = () => {
             </div>
           )}
 
-          {/* Lower Area: Shuffled Letter Choice Cards */}
-          <div className="flex-shrink-0 pb-1 sm:pb-2 max-w-md mx-auto w-full">
+          {/* 3. Shuffled Letter Choice Cards Grid */}
+          <div className="flex-shrink-0 w-full">
             <div
-              className={`grid gap-2 sm:gap-3 justify-center items-center ${
+              className={`grid gap-2 sm:gap-2.5 justify-center items-center ${
                 roundState.cards.length <= 8 ? 'grid-cols-4' : 'grid-cols-5'
               }`}
             >
               {roundState.cards.map((card) => {
                 const isUsed = card.isUsed;
-                const isShaking = shakingCardId === card.id;
+                const isWrong = shakingCardId === card.id;
                 const isHint = roundState.hintCardId === card.id && !isUsed;
 
                 return (
@@ -381,8 +382,8 @@ export const WordLettersGame: React.FC = () => {
                     className={`letter-card mx-auto ${
                       isUsed
                         ? 'bg-gray-100 text-gray-300 border-gray-200 shadow-none cursor-default opacity-30 scale-90'
-                        : isShaking
-                        ? 'bg-red-100 text-brand-error border-brand-error animate-shake'
+                        : isWrong
+                        ? 'letter-card-error animate-wiggle'
                         : isHint
                         ? 'animate-hint'
                         : 'bg-white text-brand-text border-brand-turquoise/30 hover:border-brand-turquoise hover:bg-teal-50/40'
@@ -394,7 +395,7 @@ export const WordLettersGame: React.FC = () => {
               })}
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

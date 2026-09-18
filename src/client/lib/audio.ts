@@ -171,28 +171,36 @@ class SoundManager {
     osc.stop(now + 0.3);
   }
 
-  // Gentle soft error alert (non-punitive, warm, not harsh)
-  public playError() {
+  // Gentle soft error alert: warm, pleasant "بوب" / "تن" (150-180ms, non-punitive)
+  public playSoftError() {
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
+    // Use gentle sinusoidal droplet with rapid warm pitch drop (290Hz -> 190Hz)
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'triangle';
+    osc.type = 'sine';
     const now = ctx.currentTime;
-    osc.frequency.setValueAtTime(240, now);
-    osc.frequency.exponentialRampToValueAtTime(180, now + 0.12);
+    osc.frequency.setValueAtTime(290, now);
+    osc.frequency.exponentialRampToValueAtTime(190, now + 0.14);
 
-    gain.gain.setValueAtTime(0.15, now);
+    // Warm, soft volume envelope (zero click, soft attack, smooth decay)
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.18, now + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.16);
+    osc.stop(now + 0.17);
+  }
+
+  // Backward-compatible alias
+  public playError() {
+    this.playSoftError();
   }
 
   // Celebratory fanfare upon completing a session

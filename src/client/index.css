@@ -87,14 +87,23 @@
   }
 }
 
-@keyframes shake {
+@keyframes softWiggle {
   0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
 }
 
-.animate-shake {
-  animation: shake 0.3s ease-in-out;
+.animate-wiggle {
+  animation: softWiggle 0.38s ease-in-out;
+  will-change: transform;
+}
+
+.letter-card-error {
+  background-color: #ffe4e6 !important; /* soft rose-100 */
+  border-color: #fb7185 !important; /* rose-400 */
+  color: #9f1239 !important; /* rose-800 */
 }
 
 @keyframes hintGlow {
