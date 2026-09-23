@@ -16,10 +16,13 @@ import {
 import { Word, GameRoundResult, ClientSyncBatch } from '@shared/types';
 import { Star, Sparkles, Home, Volume2, VolumeX } from 'lucide-react';
 import { ArabicWordDisplay } from '../components/ArabicWordDisplay';
+import { computeGameplayAnalysis, saveGuestGameResults } from '../lib/guestSession';
 
 export const WordLettersGame: React.FC = () => {
-  const { activeChild, isMuted, toggleSound } = useAuth();
+  const { activeChild, isGuest, isMuted, toggleSound } = useAuth();
   const navigate = useNavigate();
+
+  const isGuestActive = isGuest || (activeChild as any)?.is_guest;
 
   const [words, setWords] = useState<Word[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(0);
@@ -111,12 +114,12 @@ export const WordLettersGame: React.FC = () => {
   const loadPack = async () => {
     setLoading(true);
     const targetLevel = activeChild?.current_level || 1;
-    const cacheKey = `pack_letters_${activeChild?.id || 'child'}_lvl_${targetLevel}`;
+    const cacheKey = `pack_letters_${isGuestActive ? 'guest' : (activeChild?.id || 'child')}_lvl_${targetLevel}`;
 
     try {
       // 1. Fetch fresh words from API strictly filtered by target level
       const res = await api.games.getPack({
-        childId: activeChild?.id,
+        childId: isGuestActive ? undefined : activeChild?.id,
         level: targetLevel,
         gameType: 'word_letters',
         count: 6,
@@ -249,22 +252,31 @@ export const WordLettersGame: React.FC = () => {
   const finishSession = async (results: GameRoundResult[]) => {
     const totalPoints = results.reduce((sum, r) => sum + r.points, 0);
     const activeMs = results.reduce((sum, r) => sum + r.activeSolveMs, 0);
-    const clientBatchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    const batch: ClientSyncBatch = {
-      clientBatchId,
-      childId: activeChild!.id,
-      gameType: 'word_letters',
-      startedAt: new Date(sessionStartTime).toISOString(),
-      endedAt: new Date().toISOString(),
-      activeMs,
-      points: totalPoints,
-      appVersion: '1.0.0',
-      rounds: results,
-    };
+    const analysis = computeGameplayAnalysis(
+      results,
+      activeChild?.display_name || 'بَطَلُ القِرَاءَة',
+      activeChild?.current_level || 1
+    );
 
-    // Background resilient sync
-    syncManager.recordAndSyncBatch(batch);
+    if (isGuestActive) {
+      saveGuestGameResults(analysis);
+    } else if (activeChild) {
+      const clientBatchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const batch: ClientSyncBatch = {
+        clientBatchId,
+        childId: activeChild.id,
+        gameType: 'word_letters',
+        startedAt: new Date(sessionStartTime).toISOString(),
+        endedAt: new Date().toISOString(),
+        activeMs,
+        points: totalPoints,
+        appVersion: '1.0.0',
+        rounds: results,
+      };
+      // Background resilient sync
+      syncManager.recordAndSyncBatch(batch);
+    }
 
     // Navigate to summary screen
     navigate('/summary', {
@@ -272,7 +284,11 @@ export const WordLettersGame: React.FC = () => {
         gameType: 'word_letters',
         wordsCount: results.length,
         points: totalPoints,
-        childName: activeChild?.display_name,
+        childName: activeChild?.display_name || 'بطل القراءة',
+        isGuest: isGuestActive,
+        level: activeChild?.current_level || 1,
+        analysis,
+        rounds: results,
       }
     });
   };
@@ -293,7 +309,7 @@ export const WordLettersGame: React.FC = () => {
       {/* Top Header: Compact integrated bar */}
       <div className="flex items-center justify-between gap-2 flex-shrink-0 h-10 sm:h-12 mb-1 sm:mb-2">
         <button
-          onClick={() => navigate('/child-home')}
+          onClick={() => navigate(isGuestActive ? '/' : '/child-home')}
           className="btn-child !min-h-[40px] !min-w-[40px] w-10 h-10 bg-white border border-gray-200 text-gray-600 rounded-xl shadow-sm"
           title="الرئيسية"
         >

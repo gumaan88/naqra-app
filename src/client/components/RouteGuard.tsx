@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/authContext';
 import { BookOpen } from 'lucide-react';
+import { getGuestChild, startGuestSession } from '../lib/guestSession';
 
 interface RouteGuardProps {
   requiredRole?: 'admin' | 'parent' | 'child';
@@ -9,7 +10,7 @@ interface RouteGuardProps {
 }
 
 export const RouteGuard: React.FC<RouteGuardProps> = ({ requiredRole, children }) => {
-  const { authStatus, sessionRole, user, activeChild } = useAuth();
+  const { authStatus, sessionRole, user, activeChild, isGuest } = useAuth();
   const location = useLocation();
 
   // 1. Loading State: Never redirect while checking session!
@@ -25,9 +26,17 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ requiredRole, children }
     );
   }
 
-  // 2. Unauthenticated State: Redirect to appropriate login portal
+  // 2. Unauthenticated State: Check for guest play routes
   if (authStatus === 'unauthenticated') {
     if (requiredRole === 'child') {
+      const isGameOrSummary = location.pathname.startsWith('/game/') || location.pathname === '/summary';
+      if (isGameOrSummary) {
+        // Automatically activate guest session if visiting game directly
+        if (!getGuestChild()) {
+          startGuestSession(1);
+        }
+        return <>{children}</>;
+      }
       return <Navigate to="/child-login" state={{ from: location }} replace />;
     }
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -43,6 +52,9 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ requiredRole, children }
       return <Navigate to="/child-home" replace />;
     }
   } else if (requiredRole === 'child') {
+    if (isGuest || (activeChild as any)?.is_guest) {
+      return <>{children}</>;
+    }
     if (sessionRole !== 'child' || !activeChild) {
       return <Navigate to="/parent" replace />;
     }

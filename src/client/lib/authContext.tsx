@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Child } from '@shared/types';
 import { api, getStoredToken, setStoredToken } from './api';
 import { sound } from './audio';
+import { getGuestChild, startGuestSession, clearGuestData } from './guestSession';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -12,9 +13,12 @@ interface AuthContextType {
   sessionRole: 'parent' | 'admin' | 'child' | null;
   isLoading: boolean;
   isMuted: boolean;
+  isGuest: boolean;
   loginParent: (token: string, user: User) => void;
   login: (token: string, user: User) => void;
   loginChild: (token: string, child: Child) => void;
+  startGuestPlay: (level: number, name?: string) => Child;
+  exitGuestMode: () => void;
   setActiveChild: (child: Child | null) => void;
   logout: () => Promise<void>;
   toggleSound: () => void;
@@ -28,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [activeChild, setActiveChild] = useState<Child | null>(null);
   const [sessionRole, setSessionRole] = useState<'parent' | 'admin' | 'child' | null>(null);
+  const [isGuest, setIsGuest] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(sound.getMuted());
 
   const checkAuth = async () => {
@@ -35,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.auth.me();
       if (res.success && res.authenticated) {
+        setIsGuest(false);
         if (res.role === 'child' && res.child) {
           setActiveChild(res.child);
           setUser(null);
@@ -51,20 +57,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSessionRole(null);
           setAuthStatus('unauthenticated');
         }
-      } else {
-        setUser(null);
-        setActiveChild(null);
-        setSessionRole(null);
-        setStoredToken(null);
-        setAuthStatus('unauthenticated');
+        return;
       }
     } catch {
-      setUser(null);
-      setActiveChild(null);
-      setSessionRole(null);
-      setStoredToken(null);
-      setAuthStatus('unauthenticated');
+      // Server check failed or network offline
     }
+
+    // Check if active guest child exists locally
+    const guestChild = getGuestChild();
+    if (guestChild) {
+      setActiveChild(guestChild);
+      setUser(null);
+      setSessionRole('child');
+      setIsGuest(true);
+      setAuthStatus('authenticated');
+      return;
+    }
+
+    setUser(null);
+    setActiveChild(null);
+    setSessionRole(null);
+    setIsGuest(false);
+    setStoredToken(null);
+    setAuthStatus('unauthenticated');
   };
 
   useEffect(() => {
@@ -72,6 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginParent = (token: string, loggedUser: User) => {
+    clearGuestData();
+    setIsGuest(false);
     setStoredToken(token);
     setUser(loggedUser);
     setActiveChild(null);
@@ -80,6 +97,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginChild = (token: string, childData: Child) => {
+    clearGuestData();
+    setIsGuest(false);
     setStoredToken(token);
     setActiveChild(childData);
     setUser(null);
@@ -87,7 +106,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthStatus('authenticated');
   };
 
+  const startGuestPlay = (level: number, name?: string): Child => {
+    const guest = startGuestSession(level, name);
+    setActiveChild(guest);
+    setUser(null);
+    setSessionRole('child');
+    setIsGuest(true);
+    setAuthStatus('authenticated');
+    return guest;
+  };
+
+  const exitGuestMode = () => {
+    clearGuestData();
+    setIsGuest(false);
+    setActiveChild(null);
+    setSessionRole(null);
+    setAuthStatus('unauthenticated');
+  };
+
   const logout = async () => {
+    if (isGuest) {
+      exitGuestMode();
+      return;
+    }
     try {
       await api.auth.logout();
     } catch {}
@@ -95,6 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setActiveChild(null);
     setSessionRole(null);
+    setIsGuest(false);
     setAuthStatus('unauthenticated');
     localStorage.removeItem('naqra_active_child');
   };
@@ -117,9 +159,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sessionRole,
         isLoading: authStatus === 'loading',
         isMuted,
+        isGuest,
         loginParent,
         login: loginParent,
         loginChild,
+        startGuestPlay,
+        exitGuestMode,
         setActiveChild,
         logout,
         toggleSound,

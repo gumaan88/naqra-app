@@ -43,11 +43,7 @@ export const App: React.FC = () => {
           />
           <Route
             path="/game/word-image"
-            element={
-              <RouteGuard requiredRole="child">
-                <WordImageGame />
-              </RouteGuard>
-            }
+            element={<Navigate to="/game/word-letters" replace />}
           />
           <Route
             path="/summary"

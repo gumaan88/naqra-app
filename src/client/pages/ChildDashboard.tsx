@@ -71,63 +71,40 @@ export const ChildDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Game Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      {/* Featured Game Card (Game 2 'Word & Image' temporarily hidden for upcoming enhancements) */}
+      <div className="max-w-2xl mx-auto w-full mb-8">
         {/* Game 1: حروف الكلمة */}
         <div
           onClick={() => startGame('word_letters')}
-          className="bg-white rounded-3xl p-6 sm:p-8 border-3 border-brand-turquoise shadow-lg hover:shadow-2xl hover:scale-[1.02] transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-white rounded-3xl p-6 sm:p-10 border-3 border-brand-turquoise shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden"
         >
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-2xl bg-teal-50 text-brand-turquoise flex items-center justify-center font-black text-2xl border border-teal-200 group-hover:bg-brand-turquoise group-hover:text-white transition-colors">
-                <BookOpen className="w-7 h-7" />
+          <div className="absolute top-0 left-0 w-32 h-32 bg-brand-turquoise/10 rounded-br-full -z-0" />
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-5">
+              <div className="w-16 h-16 rounded-2xl bg-teal-50 text-brand-turquoise flex items-center justify-center font-black text-3xl border border-teal-200 group-hover:bg-brand-turquoise group-hover:text-white transition-colors shadow-sm">
+                <BookOpen className="w-8 h-8" />
               </div>
-              <span className="px-3 py-1 rounded-xl bg-teal-50 text-brand-turquoise text-xs font-black">
-                اللعبة الأولى
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-3.5 py-1 rounded-xl bg-teal-50 text-brand-turquoise text-xs font-black border border-teal-200">
+                  اللعبة التفاعلية
+                </span>
+                <span className="px-3 py-1 rounded-xl bg-amber-50 text-amber-900 text-xs font-black border border-amber-200">
+                  المستوى {activeChild.current_level}
+                </span>
+              </div>
             </div>
 
-            <h2 className="text-2xl sm:text-3xl font-black text-brand-text mb-2">
+            <h2 className="text-2xl sm:text-4xl font-black text-brand-text mb-3">
               حُرُوفُ الْكَلِمَة
             </h2>
-            <p className="text-gray-600 font-medium text-sm sm:text-base leading-relaxed mb-6">
-              اقْرَأِ الْكَلِمَةَ ثُمَّ اخْتَرِ الْحُرُوفَ بِالتَّرْتِيبِ الصَّحِيحِ لِتَمْلَأَ الْخَانَات.
+            <p className="text-gray-600 font-medium text-base sm:text-lg leading-relaxed mb-8">
+              اقْرَأِ الْكَلِمَةَ بِتَأَنٍّ ثُمَّ اخْتَرِ الْحُرُوفَ بِالتَّرْتِيبِ الصَّحِيحِ لِتَمْلَأَ الْخَانَات وَتَجْمَعَ النُّجُوم! 🌟
             </p>
           </div>
 
-          <div className="btn-child w-full bg-brand-turquoise hover:bg-[#1E978F] text-white py-3.5 text-lg font-black shadow-md flex items-center justify-center gap-2">
-            <Play className="w-5 h-5 fill-white" />
-            <span>ابْدَأِ اللُّعْبَة</span>
-          </div>
-        </div>
-
-        {/* Game 2: الكلمة والصورة */}
-        <div
-          onClick={() => startGame('word_image')}
-          className="bg-white rounded-3xl p-6 sm:p-8 border-3 border-brand-coral shadow-lg hover:shadow-2xl hover:scale-[1.02] transition-all cursor-pointer group flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-brand-coral flex items-center justify-center font-black text-2xl border border-rose-200 group-hover:bg-brand-coral group-hover:text-white transition-colors">
-                <ImageIcon className="w-7 h-7" />
-              </div>
-              <span className="px-3 py-1 rounded-xl bg-rose-50 text-brand-coral text-xs font-black">
-                اللعبة الثانية
-              </span>
-            </div>
-
-            <h2 className="text-2xl sm:text-3xl font-black text-brand-text mb-2">
-              الْكَلِمَةُ وَالصُّورَة
-            </h2>
-            <p className="text-gray-600 font-medium text-sm sm:text-base leading-relaxed mb-6">
-              اقْرَأِ الْكَلِمَةَ فِي الْأَعْلَى ثُمَّ اخْتَرِ الصُّورَةَ الْمُطَابِقَةَ لَهَا بِسُرْعَةٍ وَذَكَاء.
-            </p>
-          </div>
-
-          <div className="btn-child w-full bg-brand-coral hover:bg-[#F26B5C] text-white py-3.5 text-lg font-black shadow-md flex items-center justify-center gap-2">
-            <Play className="w-5 h-5 fill-white" />
-            <span>ابْدَأِ اللُّعْبَة</span>
+          <div className="btn-child w-full bg-gradient-to-r from-brand-turquoise to-[#22B8AE] hover:from-[#1E978F] hover:to-brand-turquoise text-white py-4 text-xl font-black shadow-lg shadow-brand-turquoise/25 flex items-center justify-center gap-3 rounded-2xl">
+            <Play className="w-6 h-6 fill-white" />
+            <span>ابْدَأِ اللَّعِبَ الْآن!</span>
           </div>
         </div>
       </div>
