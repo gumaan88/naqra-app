@@ -246,7 +246,7 @@ export const WordLettersGame: React.FC = () => {
         } else {
           finishSession(updatedResults);
         }
-      }, 1500);
+      }, 2400);
     }
   };
 
@@ -434,10 +434,10 @@ export const WordLettersGame: React.FC = () => {
                     }}
                     className={`letter-slot select-none overflow-hidden ${
                       isFilled
-                        ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md font-bold'
+                        ? 'letter-slot-filled font-bold'
                         : isActive
-                        ? 'border-2 border-brand-turquoise bg-teal-50/90 shadow-md scale-105 ring-2 ring-brand-turquoise/30'
-                        : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
+                        ? 'letter-slot-active'
+                        : 'letter-slot-empty'
                     }`}
                   >
                     <span className="inline-block transition-transform duration-150 leading-none">
@@ -486,7 +486,7 @@ export const WordLettersGame: React.FC = () => {
                       onClick={() => handleCardClick(card.id)}
                       className={`letter-card mx-auto !w-13 !h-13 sm:!w-14 sm:!h-14 ${
                         isUsed
-                          ? 'bg-gray-100 text-gray-300 border-gray-200 shadow-none cursor-default opacity-30 scale-90'
+                          ? 'letter-card-used'
                           : isWrong
                           ? 'letter-card-error animate-wiggle'
                           : isHint

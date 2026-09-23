@@ -67,14 +67,47 @@
   align-items: center;
   justify-content: center;
   border-width: 2px;
-  border-style: dashed;
-  border-color: rgba(36, 169, 160, 0.4);
-  background-color: rgba(255, 255, 255, 0.7);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   transition: all 0.18s ease-in-out;
   white-space: nowrap;
   overflow: hidden;
   line-height: 1;
+}
+
+/* Explicit slot states guaranteeing background and text contrast */
+.letter-slot-filled {
+  background-color: #10B981 !important;
+  color: #FFFFFF !important;
+  border-color: #059669 !important;
+  border-style: solid !important;
+  box-shadow: 0 4px 8px -1px rgba(16, 185, 129, 0.35) !important;
+  transform: scale(1.05);
+}
+
+.letter-slot-active {
+  background-color: #F0FDFA !important;
+  border-color: #24A9A0 !important;
+  border-style: solid !important;
+  box-shadow: 0 0 0 3px rgba(36, 169, 160, 0.25) !important;
+  transform: scale(1.05);
+}
+
+.letter-slot-empty {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: #CBD5E1 !important;
+  border-style: dashed !important;
+  color: transparent !important;
+}
+
+/* Keypad card used state: legible, gentle placed indicator */
+.letter-card-used {
+  background-color: #F0FDFA !important;
+  color: #0D9488 !important;
+  border-color: #5EEAD4 !important;
+  opacity: 0.55 !important;
+  transform: scale(0.94);
+  box-shadow: none !important;
+  cursor: default !important;
 }
 
 /* Compact Mode for short mobile viewports (height < 680px) */
