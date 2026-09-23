@@ -35,30 +35,33 @@ export const WordImageGame: React.FC = () => {
 
   useEffect(() => {
     loadQuestions();
-  }, []);
+  }, [activeChild?.id, activeChild?.current_level]);
 
   const loadQuestions = async () => {
     setLoading(true);
-    const cacheKey = `pack_images_lvl_${activeChild?.current_level || 1}`;
+    const targetLevel = activeChild?.current_level || 1;
+    const cacheKey = `pack_images_${activeChild?.id || 'child'}_lvl_${targetLevel}`;
 
     try {
-      let cached = await localDb.getGamePack(cacheKey);
-      if (!cached || cached.length === 0) {
-        const res = await api.games.getPack({
-          childId: activeChild?.id,
-          gameType: 'word_image',
-          count: 5,
-        });
-        if (res.success && res.questions?.length > 0) {
-          cached = res.questions;
-          await localDb.saveGamePack(cacheKey, cached);
-        }
+      const res = await api.games.getPack({
+        childId: activeChild?.id,
+        level: targetLevel,
+        gameType: 'word_image',
+        count: 5,
+      });
+      if (res.success && res.questions?.length > 0) {
+        const shuffled = [...res.questions].sort(() => Math.random() - 0.5);
+        setQuestions(shuffled);
+        await localDb.saveGamePack(cacheKey, shuffled);
+        return;
       }
-
-      if (cached && cached.length > 0) {
-        setQuestions(cached);
-      }
+      throw new Error('No questions from API');
     } catch {
+      let cached = await localDb.getGamePack(cacheKey);
+      if (cached && cached.length > 0) {
+        const shuffled = [...cached].sort(() => Math.random() - 0.5);
+        setQuestions(shuffled);
+      } else {
       // Fallback offline questions
       const fallbackQuestions: Question[] = [
         {
@@ -79,6 +82,7 @@ export const WordImageGame: React.FC = () => {
         }
       ];
       setQuestions(fallbackQuestions);
+      }
     } finally {
       setLoading(false);
       setSessionStart(Date.now());

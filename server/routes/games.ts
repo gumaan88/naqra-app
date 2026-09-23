@@ -23,15 +23,39 @@ gamesRoutes.get('/game-pack', anyAuthMiddleware, async (c) => {
   let parentId = c.get('parentId');
   let targetLevel = 1;
 
+  const queryLevel = c.req.query('level');
+  const queryChildId = c.req.query('childId');
+
+  // If childId query param is provided, fetch child to get accurate level & parentId
+  if (queryChildId) {
+    const childRecord = await db.first<Child>('SELECT * FROM children WHERE id = ?', queryChildId);
+    if (childRecord) {
+      targetLevel = childRecord.current_level || 1;
+      if (!parentId) {
+        parentId = childRecord.user_id;
+      }
+    }
+  }
+
+  // If session is child role, read child profile
   if (c.get('sessionRole') === 'child') {
     const child = c.get('child');
     if (child) {
       targetLevel = child.current_level || 1;
       parentId = child.user_id;
     }
-  } else if (c.get('sessionRole') === 'parent' || c.get('sessionRole') === 'admin') {
-    targetLevel = Number(c.req.query('level')) || 1;
   }
+
+  // If explicit level was passed in query, it takes highest precedence
+  if (queryLevel) {
+    const parsedLevel = Number(queryLevel);
+    if (!isNaN(parsedLevel) && parsedLevel >= 1) {
+      targetLevel = parsedLevel;
+    }
+  }
+
+  // Clamp targetLevel to valid range [1, 5]
+  targetLevel = Math.min(5, Math.max(1, Math.floor(targetLevel) || 1));
 
   let words: Word[] = [];
 

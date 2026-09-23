@@ -36,46 +36,116 @@ export const WordLettersGame: React.FC = () => {
   const [previewHelpUsed, setPreviewHelpUsed] = useState<boolean>(false);
   const [challengeStartedAt, setChallengeStartedAt] = useState<number>(0);
   const [streakCount, setStreakCount] = useState<number>(0);
+  const [canProceedToPlay, setCanProceedToPlay] = useState<boolean>(false);
 
-  // Load words pack (Local-first from IndexedDB or API)
+  // Full curated multi-level fallback words (Level 1 to 5)
+  const OFFLINE_WORDS_BY_LEVEL: Record<number, Word[]> = {
+    1: [
+      { id: 'w_01', text: 'أب', normalized_text: 'أب', category: 'عائلة', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_02', text: 'أم', normalized_text: 'أم', category: 'عائلة', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_03', text: 'أخ', normalized_text: 'أخ', category: 'عائلة', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_04', text: 'باب', normalized_text: 'باب', category: 'المنزل', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_05', text: 'دب', normalized_text: 'دب', category: 'حيوانات', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_07', text: 'يد', normalized_text: 'يد', category: 'جسم', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_08', text: 'أسد', normalized_text: 'أسد', category: 'حيوانات', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_09', text: 'قط', normalized_text: 'قط', category: 'حيوانات', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_10', text: 'بط', normalized_text: 'بط', category: 'طيور', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
+    ],
+    2: [
+      { id: 'w_11', text: 'قلم', normalized_text: 'قلم', category: 'أدوات', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_12', text: 'علم', normalized_text: 'علم', category: 'أشياء', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_13', text: 'شمس', normalized_text: 'شمس', category: 'طبيعة', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_14', text: 'قمر', normalized_text: 'قمر', category: 'طبيعة', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_15', text: 'نجم', normalized_text: 'نجم', category: 'طبيعة', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_16', text: 'عين', normalized_text: 'عين', category: 'جسم', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_17', text: 'تمر', normalized_text: 'تمر', category: 'طعام', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_18', text: 'خبز', normalized_text: 'خبز', category: 'طعام', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_19', text: 'نمل', normalized_text: 'نمل', category: 'حيوانات', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_20', text: 'ورد', normalized_text: 'ورد', category: 'طبيعة', difficulty_level: 2, is_imageable: true, status: 'approved', created_at: '' },
+    ],
+    3: [
+      { id: 'w_21', text: 'كتاب', normalized_text: 'كتاب', category: 'أدوات', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_22', text: 'تفاح', normalized_text: 'تفاح', category: 'فواكه', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_23', text: 'حليب', normalized_text: 'حليب', category: 'طعام', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_24', text: 'أرنب', normalized_text: 'أرنب', category: 'حيوانات', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_25', text: 'سماء', normalized_text: 'سماء', category: 'طبيعة', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_26', text: 'شجرة', normalized_text: 'شجرة', category: 'طبيعة', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_27', text: 'ساعة', normalized_text: 'ساعة', category: 'أدوات', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_28', text: 'طائر', normalized_text: 'طائر', category: 'طيور', difficulty_level: 3, is_imageable: true, status: 'approved', created_at: '' },
+    ],
+    4: [
+      { id: 'w_29', text: 'سيارة', normalized_text: 'سيارة', category: 'مركبات', difficulty_level: 4, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_30', text: 'طائرة', normalized_text: 'طائرة', category: 'مركبات', difficulty_level: 4, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_31', text: 'حديقة', normalized_text: 'حديقة', category: 'أماكن', difficulty_level: 4, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_32', text: 'مدرسة', normalized_text: 'مدرسة', category: 'أماكن', difficulty_level: 4, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_33', text: 'سفينة', normalized_text: 'سفينة', category: 'مركبات', difficulty_level: 4, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_34', text: 'فراشة', normalized_text: 'فراشة', category: 'حشرات', difficulty_level: 4, is_imageable: true, status: 'approved', created_at: '' },
+    ],
+    5: [
+      { id: 'w_35', text: 'برتقال', normalized_text: 'برتقال', category: 'فواكه', difficulty_level: 5, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_36', text: 'دراجة', normalized_text: 'دراجة', category: 'مركبات', difficulty_level: 5, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_37', text: 'زرافة', normalized_text: 'زرافة', category: 'حيوانات', difficulty_level: 5, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_38', text: 'طاووس', normalized_text: 'طاووس', category: 'طيور', difficulty_level: 5, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_39', text: 'حاسوب', normalized_text: 'حاسوب', category: 'تقنية', difficulty_level: 5, is_imageable: true, status: 'approved', created_at: '' },
+      { id: 'w_40', text: 'سلحفاة', normalized_text: 'سلحفاة', category: 'حيوانات', difficulty_level: 5, is_imageable: true, status: 'approved', created_at: '' },
+    ],
+  };
+
+  // Load words pack: dynamically linked to active child level with fresh rotation
   useEffect(() => {
     loadPack();
-  }, []);
+  }, [activeChild?.id, activeChild?.current_level]);
+
+  // Timed reveal for Phase 1 "قَرَأْتُهَا ✨" button (2.5s calm reading window)
+  useEffect(() => {
+    if (gamePhase !== 'preview') return;
+    setCanProceedToPlay(false);
+
+    const timer = setTimeout(() => {
+      setCanProceedToPlay(true);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [gamePhase, currentWordIndex]);
 
   const loadPack = async () => {
     setLoading(true);
-    const cacheKey = `pack_letters_lvl_${activeChild?.current_level || 1}`;
+    const targetLevel = activeChild?.current_level || 1;
+    const cacheKey = `pack_letters_${activeChild?.id || 'child'}_lvl_${targetLevel}`;
 
     try {
-      // Check local cache first
-      let cached = await localDb.getGamePack(cacheKey);
-      if (!cached || cached.length === 0) {
-        const res = await api.games.getPack({
-          childId: activeChild?.id,
-          gameType: 'word_letters',
-          count: 6,
-        });
-        if (res.success && res.words?.length > 0) {
-          cached = res.words;
-          await localDb.saveGamePack(cacheKey, cached);
-        }
-      }
+      // 1. Fetch fresh words from API strictly filtered by target level
+      const res = await api.games.getPack({
+        childId: activeChild?.id,
+        level: targetLevel,
+        gameType: 'word_letters',
+        count: 6,
+      });
 
-      if (cached && cached.length > 0) {
-        setWords(cached);
-        startWordRound(cached[0]);
+      if (res.success && res.words?.length > 0) {
+        // Randomize order each session
+        const freshWords = [...res.words].sort(() => Math.random() - 0.5);
+        setWords(freshWords);
+        startWordRound(freshWords[0]);
+        // Keep local cache updated for offline resilience
+        await localDb.saveGamePack(cacheKey, freshWords);
+        return;
       }
+      throw new Error('No words from API');
     } catch {
-      // Fallback curated words if completely offline and cache empty
-      const offlineWords: Word[] = [
-        { id: 'w_01', text: 'أب', normalized_text: 'أب', category: 'عائلة', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
-        { id: 'w_02', text: 'أم', normalized_text: 'أم', category: 'عائلة', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
-        { id: 'w_04', text: 'باب', normalized_text: 'باب', category: 'المنزل', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
-        { id: 'w_08', text: 'أسد', normalized_text: 'أسد', category: 'حيوانات', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
-        { id: 'w_09', text: 'قط', normalized_text: 'قط', category: 'حيوانات', difficulty_level: 1, is_imageable: true, status: 'approved', created_at: '' },
-      ];
-      setWords(offlineWords);
-      startWordRound(offlineWords[0]);
+      // 2. Fallback to cached words (shuffled so order rotates)
+      let cached = await localDb.getGamePack(cacheKey);
+      if (cached && cached.length > 0) {
+        const shuffled = [...cached].sort(() => Math.random() - 0.5);
+        setWords(shuffled);
+        startWordRound(shuffled[0]);
+      } else {
+        // 3. Fallback to full offline curated list for this exact level
+        const levelPool = OFFLINE_WORDS_BY_LEVEL[targetLevel] || OFFLINE_WORDS_BY_LEVEL[1];
+        const shuffled = [...levelPool].sort(() => Math.random() - 0.5).slice(0, 6);
+        setWords(shuffled);
+        startWordRound(shuffled[0]);
+      }
     } finally {
       setLoading(false);
       setSessionStartTime(Date.now());
@@ -87,12 +157,14 @@ export const WordLettersGame: React.FC = () => {
     setRoundState(state);
     setShakingCardId(null);
     setGamePhase('preview');
+    setCanProceedToPlay(false);
     setPreviewStartedAt(Date.now());
     setPreviewDurationMs(0);
     setPreviewHelpUsed(false);
   };
 
   const handleReadyToPlay = () => {
+    if (!canProceedToPlay) return;
     sound.playTap();
     const duration = Math.max(100, Date.now() - previewStartedAt);
     setPreviewDurationMs(duration);
@@ -285,16 +357,23 @@ export const WordLettersGame: React.FC = () => {
             </p>
           </div>
 
-          {/* Action Area */}
+          {/* Action Area with Timed Reading Reveal */}
           <div className="flex flex-col items-center gap-2.5 w-full max-w-xs px-4">
-            <button
-              type="button"
-              onClick={handleReadyToPlay}
-              className="btn-child w-full !min-h-[50px] sm:!min-h-[56px] bg-gradient-to-r from-brand-turquoise to-[#22B8AE] text-white text-base sm:text-lg font-black shadow-lg hover:shadow-xl active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-5 h-5 text-amber-300" />
-              <span>قَرَأْتُهَا ✨</span>
-            </button>
+            {!canProceedToPlay ? (
+              <div className="w-full !min-h-[50px] sm:!min-h-[56px] bg-teal-50/90 border-2 border-dashed border-teal-300/80 rounded-2xl flex items-center justify-center gap-2 text-teal-800 font-bold text-sm sm:text-base animate-pulse shadow-sm">
+                <Sparkles className="w-4 h-4 text-teal-600 animate-spin" style={{ animationDuration: '3s' }} />
+                <span>تَهَجَّ الكَلِمَةَ بِتَأَنٍّ... ⏳</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleReadyToPlay}
+                className="btn-child w-full !min-h-[50px] sm:!min-h-[56px] bg-gradient-to-r from-brand-turquoise to-[#22B8AE] text-white text-base sm:text-lg font-black shadow-lg hover:shadow-xl active:scale-95 flex items-center justify-center gap-2 animate-in fade-in zoom-in-95 duration-300"
+              >
+                <Sparkles className="w-5 h-5 text-amber-300" />
+                <span>قَرَأْتُهَا ✨</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -361,38 +440,44 @@ export const WordLettersGame: React.FC = () => {
             </div>
           )}
 
-          {/* 3. Shuffled Letter Choice Cards Grid */}
-          <div className="flex-shrink-0 w-full">
-            <div
-              className={`grid gap-2 sm:gap-2.5 justify-center items-center ${
-                roundState.cards.length <= 8 ? 'grid-cols-4' : 'grid-cols-5'
-              }`}
-            >
-              {roundState.cards.map((card) => {
-                const isUsed = card.isUsed;
-                const isWrong = shakingCardId === card.id;
-                const isHint = roundState.hintCardId === card.id && !isUsed;
+          {/* 3. Ergonomic Clustered Letter Keypad Tray (Within Child's Hand Reach) */}
+          <div className="flex-shrink-0 w-full max-w-[320px] sm:max-w-[340px] mx-auto px-1">
+            <div className="bg-white/90 backdrop-blur-md p-2.5 sm:p-3 rounded-3xl border-2 border-brand-turquoise/30 shadow-md flex flex-col items-center">
+              <div
+                className={`grid gap-2 sm:gap-2.5 justify-center items-center w-full ${
+                  roundState.cards.length <= 6
+                    ? 'grid-cols-3'
+                    : roundState.cards.length <= 8
+                    ? 'grid-cols-4'
+                    : 'grid-cols-4 sm:grid-cols-5'
+                }`}
+              >
+                {roundState.cards.map((card) => {
+                  const isUsed = card.isUsed;
+                  const isWrong = shakingCardId === card.id;
+                  const isHint = roundState.hintCardId === card.id && !isUsed;
 
-                return (
-                  <button
-                    key={card.id}
-                    type="button"
-                    disabled={isUsed}
-                    onClick={() => handleCardClick(card.id)}
-                    className={`letter-card mx-auto ${
-                      isUsed
-                        ? 'bg-gray-100 text-gray-300 border-gray-200 shadow-none cursor-default opacity-30 scale-90'
-                        : isWrong
-                        ? 'letter-card-error animate-wiggle'
-                        : isHint
-                        ? 'animate-hint'
-                        : 'bg-white text-brand-text border-brand-turquoise/30 hover:border-brand-turquoise hover:bg-teal-50/40'
-                    }`}
-                  >
-                    {card.letter}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      disabled={isUsed}
+                      onClick={() => handleCardClick(card.id)}
+                      className={`letter-card mx-auto !w-13 !h-13 sm:!w-14 sm:!h-14 ${
+                        isUsed
+                          ? 'bg-gray-100 text-gray-300 border-gray-200 shadow-none cursor-default opacity-30 scale-90'
+                          : isWrong
+                          ? 'letter-card-error animate-wiggle'
+                          : isHint
+                          ? 'animate-hint'
+                          : 'bg-white text-brand-text border-brand-turquoise/40 hover:border-brand-turquoise hover:bg-teal-50/50 shadow-md active:scale-90'
+                      }`}
+                    >
+                      {card.letter}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

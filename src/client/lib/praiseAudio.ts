@@ -295,12 +295,23 @@ class PraiseAudioManager {
     if (this.voiceBag.length === 0) {
       this.initVoiceBag();
     }
-    const clip = this.voiceBag.pop() || PRAISE_CLIPS[0];
-    this.recentVoiceIds.push(clip.id);
+    let index = this.voiceBag.length - 1;
+    if (this.recentVoiceIds.length > 0) {
+      const lastId = this.recentVoiceIds[this.recentVoiceIds.length - 1];
+      if (this.voiceBag[index].id === lastId && this.voiceBag.length > 1) {
+        index = this.voiceBag.findIndex(c => !this.recentVoiceIds.includes(c.id));
+        if (index === -1) {
+          index = this.voiceBag.findIndex(c => c.id !== lastId);
+        }
+      }
+    }
+    const [clip] = this.voiceBag.splice(index >= 0 ? index : 0, 1);
+    const selected = clip || PRAISE_CLIPS[0];
+    this.recentVoiceIds.push(selected.id);
     if (this.recentVoiceIds.length > 3) {
       this.recentVoiceIds.shift();
     }
-    return clip;
+    return selected;
   }
 
   // Get next sound profile without repetition (guarantees not in last 2)
@@ -308,12 +319,20 @@ class PraiseAudioManager {
     if (this.profileBag.length === 0) {
       this.initProfileBag();
     }
-    const profile = this.profileBag.pop() || SOUND_PROFILES[0];
-    this.recentProfileIds.push(profile.id);
+    let index = this.profileBag.length - 1;
+    if (this.recentProfileIds.length > 0) {
+      const lastId = this.recentProfileIds[this.recentProfileIds.length - 1];
+      if (this.profileBag[index].id === lastId && this.profileBag.length > 1) {
+        index = this.profileBag.findIndex(p => p.id !== lastId);
+      }
+    }
+    const [profile] = this.profileBag.splice(index >= 0 ? index : 0, 1);
+    const selected = profile || SOUND_PROFILES[0];
+    this.recentProfileIds.push(selected.id);
     if (this.recentProfileIds.length > 2) {
       this.recentProfileIds.shift();
     }
-    return profile;
+    return selected;
   }
 
   // Play natural human praise with layered sound profile and Web Audio mixing

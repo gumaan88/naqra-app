@@ -193,11 +193,12 @@ export const api = {
   },
 
   games: {
-    getPack: (params: { childId?: string; gameType?: string; count?: number }) => {
+    getPack: (params: { childId?: string; gameType?: string; count?: number; level?: number }) => {
       const query = new URLSearchParams();
       if (params.childId) query.set('childId', params.childId);
       if (params.gameType) query.set('gameType', params.gameType);
       if (params.count) query.set('count', String(params.count));
+      if (params.level) query.set('level', String(params.level));
       return request<any>(`/api/game-pack?${query.toString()}`);
     },
   },
