@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getArabicGraphemes } from '../src/client/components/ArabicWordDisplay';
-import { normalizeArabicText, splitArabicLetters } from '../shared/arabic';
+import { normalizeArabicText, splitArabicLetters, getArabicPositionalLetter } from '../shared/arabic';
 
 describe('Arabic Connected Words & Shaping Verification', () => {
   const mandatoryWords = [
@@ -92,4 +92,56 @@ describe('Arabic Connected Words & Shaping Verification', () => {
       expect(word.substring(currentStart, currentEnd)).toBe('ر');
     });
   });
+
+  describe('3. Contextual Positional Shaping in Slots (أشكال ومدود الحروف)', () => {
+    it('shapes standard dual-connecting word "كَتَبَ" correctly', () => {
+      const letters = splitArabicLetters('كَتَبَ'); // ['ك', 'ت', 'ب']
+      const shaped = letters.map((_, i) => getArabicPositionalLetter(letters, i));
+      expect(shaped).toEqual(['كـ', 'ـتـ', 'ـب']);
+    });
+
+    it('shapes "نقرأ" correctly with medial qaaf and isolated hamza', () => {
+      const letters = splitArabicLetters('نقرأ'); // ['ن', 'ق', 'ر', 'أ']
+      const shaped = letters.map((_, i) => getArabicPositionalLetter(letters, i));
+      expect(shaped).toEqual(['نـ', 'ـقـ', 'ـر', 'أ']);
+    });
+
+    it('shapes "باب" with isolated final baa due to preceding alif (حرف رافس)', () => {
+      const letters = splitArabicLetters('باب'); // ['ب', 'ا', 'ب']
+      const shaped = letters.map((_, i) => getArabicPositionalLetter(letters, i));
+      expect(shaped).toEqual(['بـ', 'ـا', 'ب']);
+    });
+
+    it('shapes "أسد" with isolated alif, initial seen, and final dal', () => {
+      const letters = splitArabicLetters('أسد'); // ['أ', 'س', 'د']
+      const shaped = letters.map((_, i) => getArabicPositionalLetter(letters, i));
+      expect(shaped).toEqual(['أ', 'سـ', 'ـد']);
+    });
+
+    it('shapes complex word "مدرسة" with sequential rafeesa letters (د, ر)', () => {
+      const letters = splitArabicLetters('مدرسة'); // ['م', 'د', 'ر', 'س', 'ة']
+      const shaped = letters.map((_, i) => getArabicPositionalLetter(letters, i));
+      expect(shaped).toEqual(['مـ', 'ـد', 'ر', 'سـ', 'ـة']);
+    });
+
+    it('shapes fully disconnected word "وردة" as isolated letters', () => {
+      const letters = splitArabicLetters('وردة'); // ['و', 'ر', 'د', 'ة']
+      const shaped = letters.map((_, i) => getArabicPositionalLetter(letters, i));
+      expect(shaped).toEqual(['و', 'ر', 'د', 'ة']);
+    });
+
+    it('never produces empty strings or allows letters to vanish for all mandatory words', () => {
+      for (const word of mandatoryWords) {
+        const letters = splitArabicLetters(word);
+        letters.forEach((char, idx) => {
+          const shaped = getArabicPositionalLetter(letters, idx);
+          expect(shaped).toBeTruthy();
+          expect(shaped.length).toBeGreaterThanOrEqual(1);
+          // Shaped letter must strictly contain the root Arabic character
+          expect(shaped).toContain(char);
+        });
+      }
+    });
+  });
 });
+

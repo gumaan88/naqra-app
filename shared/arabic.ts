@@ -47,6 +47,82 @@ export function isValidArabicWord(text: string, maxLen: number = 10): { valid: b
   return { valid: true };
 }
 
+/**
+ * Arabic non-connecting letters (الحروف الرافسة / حروف الانفصال):
+ * Letters that cannot join to a following letter (they only connect from the right / before).
+ * Plus standalone Hamza (ء) which never connects in either direction.
+ */
+export const NON_CONNECTING_AFTER = new Set([
+  'ا', 'أ', 'إ', 'آ', 'ٱ',
+  'د', 'ذ',
+  'ر', 'ز',
+  'و', 'ؤ',
+  'ة', 'ى',
+  'ء',
+]);
+
+/**
+ * Returns the contextual positional form of an Arabic letter in a word
+ * using standard Arabic Tatweel / Kashida (\u0640 / 'ـ') extensions.
+ *
+ * Rules:
+ * - canConnectBefore: True if preceded by a letter that connects forward (not rafeesa / not hamza).
+ * - canConnectAfter: True if followed by a letter, current letter is not rafeesa, and next is not hamza.
+ *
+ * Shapes:
+ * - Medial (ـبـ): Connected before and after
+ * - Initial (بـ): Connected after only
+ * - Final (ـب): Connected before only
+ * - Isolated (ب): Neither connects
+ */
+export function getArabicPositionalLetter(
+  wordOrLetters: string | string[],
+  index: number
+): string {
+  const letters = Array.isArray(wordOrLetters)
+    ? wordOrLetters
+    : splitArabicLetters(wordOrLetters);
+
+  if (index < 0 || index >= letters.length) {
+    return '';
+  }
+
+  const char = letters[index];
+  if (!char) return '';
+
+  // Standalone Hamza never joins in either direction
+  if (char === 'ء') {
+    return 'ء';
+  }
+
+  const prevChar = index > 0 ? letters[index - 1] : null;
+  const nextChar = index < letters.length - 1 ? letters[index + 1] : null;
+
+  const canConnectBefore = Boolean(
+    prevChar &&
+    prevChar !== 'ء' &&
+    !NON_CONNECTING_AFTER.has(prevChar)
+  );
+
+  const canConnectAfter = Boolean(
+    nextChar &&
+    nextChar !== 'ء' &&
+    !NON_CONNECTING_AFTER.has(char)
+  );
+
+  if (canConnectBefore && canConnectAfter) {
+    return `ـ${char}ـ`;
+  }
+  if (canConnectBefore) {
+    return `ـ${char}`;
+  }
+  if (canConnectAfter) {
+    return `${char}ـ`;
+  }
+  return char;
+}
+
+
 // Arabic alphabet pool
 export const ARABIC_ALPHABET = [
   'ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش',

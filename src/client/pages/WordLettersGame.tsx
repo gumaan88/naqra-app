@@ -16,6 +16,7 @@ import {
 import { Word, GameRoundResult, ClientSyncBatch } from '@shared/types';
 import { Star, Sparkles, Home, Volume2, VolumeX } from 'lucide-react';
 import { ArabicWordDisplay } from '../components/ArabicWordDisplay';
+import { getArabicPositionalLetter } from '@shared/arabic';
 import { computeGameplayAnalysis, saveGuestGameResults } from '../lib/guestSession';
 
 export const WordLettersGame: React.FC = () => {
@@ -421,6 +422,8 @@ export const WordLettersGame: React.FC = () => {
                 const isFilled = index < roundState.expectedIndex;
                 const isActive = index === roundState.expectedIndex;
                 const wordLen = roundState.targetLetters.length;
+                const positionalChar = getArabicPositionalLetter(roundState.targetLetters, index);
+                const displayChar = isFilled ? (positionalChar || char) : '';
 
                 return (
                   <div
@@ -429,15 +432,17 @@ export const WordLettersGame: React.FC = () => {
                       maxWidth: `calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
                       flex: `1 1 calc((100% - ${(wordLen - 1) * 6}px) / ${wordLen})`,
                     }}
-                    className={`letter-slot ${
+                    className={`letter-slot select-none overflow-hidden ${
                       isFilled
-                        ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md'
+                        ? 'bg-brand-success text-white border-brand-success scale-105 shadow-md font-bold'
                         : isActive
                         ? 'border-2 border-brand-turquoise bg-teal-50/90 shadow-md scale-105 ring-2 ring-brand-turquoise/30'
                         : 'border-2 border-dashed border-gray-300 bg-white/70 opacity-60'
                     }`}
                   >
-                    {isFilled ? char : ''}
+                    <span className="inline-block transition-transform duration-150 leading-none">
+                      {displayChar}
+                    </span>
                   </div>
                 );
               })}
