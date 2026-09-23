@@ -8,7 +8,7 @@ export const LandingPage: React.FC = () => {
   const [isDirectPlayOpen, setIsDirectPlayOpen] = useState(false);
 
   return (
-    <div className="min-h-[calc(100vh-68px)] flex flex-col justify-between">
+    <div className="min-h-[calc(100vh-68px)] flex flex-col justify-between w-full max-w-full overflow-x-hidden">
       {/* Direct Play Modal */}
       <DirectPlayModal isOpen={isDirectPlayOpen} onClose={() => setIsDirectPlayOpen(false)} />
 

@@ -339,7 +339,7 @@ export const ParentDashboard: React.FC = () => {
   });
 
   return (
-    <div className="min-h-[calc(100vh-68px)] max-w-6xl mx-auto px-4 py-8">
+    <div className="min-h-[calc(100vh-68px)] max-w-6xl mx-auto px-4 py-8 w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>

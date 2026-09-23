@@ -17,9 +17,15 @@ export const App: React.FC = () => {
   const isGameRoute = location.pathname.startsWith('/game/');
 
   return (
-    <div className={`bg-brand-bg ${isGameRoute ? 'h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none select-none' : 'min-h-screen flex flex-col'}`}>
+    <div
+      className={`bg-brand-bg w-full max-w-full overflow-x-hidden ${
+        isGameRoute
+          ? 'h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none select-none'
+          : 'min-h-screen flex flex-col'
+      }`}
+    >
       {!isGameRoute && <Navbar />}
-      <main className={isGameRoute ? 'h-full w-full overflow-hidden' : 'flex-1'}>
+      <main className={isGameRoute ? 'h-full w-full overflow-hidden' : 'flex-1 w-full max-w-full overflow-x-hidden'}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<AuthPage />} />

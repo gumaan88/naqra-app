@@ -103,7 +103,7 @@ export const ChildLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-68px)] max-w-sm mx-auto px-4 py-8 flex flex-col items-center justify-between select-none">
+    <div className="min-h-[calc(100vh-68px)] max-w-sm mx-auto px-4 py-8 flex flex-col items-center justify-between select-none w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="text-center mt-2">
         <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-yellow/30 text-amber-900 font-bold text-xs mb-3">

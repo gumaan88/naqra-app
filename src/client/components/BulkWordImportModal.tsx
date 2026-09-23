@@ -148,8 +148,8 @@ export const BulkWordImportModal: React.FC<BulkWordImportModalProps> = ({
   const invalidCount = parsedItems.filter(i => i.status === 'invalid').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-gray-100 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 w-full max-w-full overflow-x-hidden">
+      <div className="bg-white rounded-3xl p-5 sm:p-8 max-w-2xl w-full shadow-2xl border border-gray-100 max-h-[92vh] flex flex-col overflow-x-hidden">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2.5">

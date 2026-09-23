@@ -77,9 +77,9 @@ export const DirectPlayModal: React.FC<DirectPlayModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in select-none w-full max-w-full overflow-x-hidden">
       <div
-        className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border-2 border-brand-turquoise/30 flex flex-col max-h-[92dvh] overflow-y-auto"
+        className="bg-white rounded-3xl max-w-lg w-full p-4 sm:p-7 shadow-2xl border-2 border-brand-turquoise/30 flex flex-col max-h-[92dvh] overflow-y-auto overflow-x-hidden"
         dir="rtl"
       >
         {/* Header */}

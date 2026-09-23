@@ -59,7 +59,7 @@ export const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-68px)] flex items-center justify-center p-4">
+    <div className="min-h-[calc(100vh-68px)] flex items-center justify-center p-4 w-full max-w-full overflow-x-hidden">
       <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border-2 border-brand-purple/20 shadow-xl">
         {/* Toggle Header */}
         <div className="flex rounded-2xl bg-purple-50 p-1.5 mb-6">

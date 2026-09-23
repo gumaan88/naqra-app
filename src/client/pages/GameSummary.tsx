@@ -77,7 +77,7 @@ export const GameSummary: React.FC = () => {
     <>
       <DirectPlayModal isOpen={isDirectPlayOpen} onClose={() => setIsDirectPlayOpen(false)} />
 
-      <div className="min-h-[calc(100vh-68px)] max-w-lg mx-auto px-4 py-8 flex flex-col items-center select-none" dir="rtl">
+      <div className="min-h-[calc(100vh-68px)] max-w-lg mx-auto px-3 sm:px-4 py-6 sm:py-8 flex flex-col items-center select-none w-full max-w-full overflow-x-hidden" dir="rtl">
         {/* Animated Trophy Header */}
         <div className="relative mb-4">
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-brand-yellow to-amber-300 flex items-center justify-center text-amber-950 shadow-2xl animate-bounce-short border-4 border-white">
@@ -121,7 +121,7 @@ export const GameSummary: React.FC = () => {
         {/* Pedagogical Feedback Banner */}
         <div className="w-full bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 border-2 border-teal-200 rounded-2xl p-3.5 mb-5 shadow-sm text-right">
           <div className="flex items-center gap-1.5 text-xs font-black text-teal-800 mb-1">
-            <Sparkles className="w-4 h-4 text-teal-600" />
+            <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
             <span>التَّقْيِيمُ التَّرْبَوِيُّ الذَّكِيّ:</span>
           </div>
           <p className="text-xs sm:text-sm font-bold text-teal-950 leading-relaxed">
@@ -130,49 +130,49 @@ export const GameSummary: React.FC = () => {
         </div>
 
         {/* Primary Stats Grid */}
-        <div className="grid grid-cols-4 gap-2 w-full mb-5">
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2 w-full mb-5">
           {/* Accuracy */}
-          <div className="bg-white rounded-2xl p-2.5 sm:p-3 border-2 border-emerald-100 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-2 sm:p-3 border-2 border-emerald-100 shadow-sm text-center min-w-0">
             <div className="flex items-center justify-center text-emerald-600 mb-1">
               <Target className="w-4 h-4" />
             </div>
-            <div className="text-lg sm:text-xl font-black text-emerald-700 leading-none">
+            <div className="text-base sm:text-xl font-black text-emerald-700 leading-none">
               %{analysis.accuracyPercentage}
             </div>
-            <div className="text-[10px] font-bold text-gray-500 mt-1">الدِّقَّة</div>
+            <div className="text-[9px] sm:text-[10px] font-bold text-gray-500 mt-1 truncate">الدِّقَّة</div>
           </div>
 
           {/* Points */}
-          <div className="bg-white rounded-2xl p-2.5 sm:p-3 border-2 border-amber-100 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-2 sm:p-3 border-2 border-amber-100 shadow-sm text-center min-w-0">
             <div className="flex items-center justify-center text-amber-500 mb-1">
               <Star className="w-4 h-4 fill-amber-500" />
             </div>
-            <div className="text-lg sm:text-xl font-black text-amber-600 leading-none">
+            <div className="text-base sm:text-xl font-black text-amber-600 leading-none">
               +{analysis.totalPoints}
             </div>
-            <div className="text-[10px] font-bold text-gray-500 mt-1">النُّقَاط</div>
+            <div className="text-[9px] sm:text-[10px] font-bold text-gray-500 mt-1 truncate">النُّقَاط</div>
           </div>
 
           {/* Average Speed */}
-          <div className="bg-white rounded-2xl p-2.5 sm:p-3 border-2 border-blue-100 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-2 sm:p-3 border-2 border-blue-100 shadow-sm text-center min-w-0">
             <div className="flex items-center justify-center text-blue-500 mb-1">
               <Clock className="w-4 h-4" />
             </div>
-            <div className="text-lg sm:text-xl font-black text-blue-600 leading-none">
+            <div className="text-base sm:text-xl font-black text-blue-600 leading-none">
               {analysis.avgSolveTimeSec}ث
             </div>
-            <div className="text-[10px] font-bold text-gray-500 mt-1">مُتَوَسِّطُ السُرْعَة</div>
+            <div className="text-[9px] sm:text-[10px] font-bold text-gray-500 mt-1 truncate">السُرْعَة</div>
           </div>
 
           {/* Max Streak */}
-          <div className="bg-white rounded-2xl p-2.5 sm:p-3 border-2 border-rose-100 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-2 sm:p-3 border-2 border-rose-100 shadow-sm text-center min-w-0">
             <div className="flex items-center justify-center text-rose-500 mb-1">
               <Flame className="w-4 h-4" />
             </div>
-            <div className="text-lg sm:text-xl font-black text-rose-600 leading-none">
+            <div className="text-base sm:text-xl font-black text-rose-600 leading-none">
               {analysis.maxStreak}
             </div>
-            <div className="text-[10px] font-bold text-gray-500 mt-1">أَعْلَى سِلْسِلَة</div>
+            <div className="text-[9px] sm:text-[10px] font-bold text-gray-500 mt-1 truncate">السِّلْسِلَة</div>
           </div>
         </div>
 

@@ -151,4 +151,31 @@ describe('No-Scroll, Bulk Import Parser, and Praise Audio Tests', () => {
       }
     });
   });
+
+  describe('4. Strict Application-Wide Horizontal Scroll Prevention', () => {
+    it('verifies index.css strictly enforces overflow-x: hidden on html, body, and #root', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const css = fs.readFileSync(path.resolve(__dirname, '../src/client/index.css'), 'utf-8');
+      expect(css).toContain('overflow-x: hidden !important');
+      expect(css).toContain('overscroll-behavior-x: none');
+      expect(css).toContain('max-width: 100%');
+    });
+
+    it('verifies App.tsx enforces overflow-x-hidden on the root container and main view', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const appSrc = fs.readFileSync(path.resolve(__dirname, '../src/client/App.tsx'), 'utf-8');
+      expect(appSrc).toContain('overflow-x-hidden');
+      expect(appSrc).toContain('w-full max-w-full');
+    });
+
+    it('verifies Navbar.tsx enforces overflow-x-hidden and mobile-safe widths', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const navbarSrc = fs.readFileSync(path.resolve(__dirname, '../src/client/components/Navbar.tsx'), 'utf-8');
+      expect(navbarSrc).toContain('overflow-x-hidden');
+      expect(navbarSrc).toContain('max-w-full');
+    });
+  });
 });

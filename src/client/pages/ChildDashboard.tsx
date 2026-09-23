@@ -26,7 +26,7 @@ export const ChildDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-68px)] max-w-4xl mx-auto px-4 py-8 flex flex-col justify-between select-none">
+    <div className="min-h-[calc(100vh-68px)] max-w-4xl mx-auto px-4 py-8 flex flex-col justify-between select-none w-full max-w-full overflow-x-hidden">
       {/* Child Header Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-brand-turquoise/30 shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
         <div className="flex items-center gap-4 text-center sm:text-right">
